@@ -253,6 +253,15 @@ mutualChecks mi d ds mid names = do
   -- to skip termination of non-recursive functions.
   modifyAllowedReductions (SmallSet.delete UnconfirmedReductions) $
     checkPositivity_ mi names
+
+  forM_ names $ \n -> do
+    d <- getConstInfo n
+    let occ = defArgOccurrences d
+    modifySignature $ updateDefinition n $ updateDefType $ makeIrrelevant occ
+    reportS "tc.decl.mutual" 5 $ ("Looking at: " ++) $ prettyShow n
+    reportSDoc "tc.decl.mutual" 5 $ pretty $ theDef d
+    --traverseTermM (const . return $ undefined) $ undefined
+
   -- Andreas, 2013-02-27: check termination before injectivity,
   -- to avoid making the injectivity checker loop.
   localTC (\ e -> e { envMutualBlock = Just mid }) $
@@ -283,6 +292,19 @@ mutualChecks mi d ds mid names = do
   -- more instances of injectivity can be recognized.
   checkInjectivity_        names
   checkProjectionLikeness_ names
+
+  where
+    makeIrrelevant :: [Occurrence] -> Type -> Type
+    makeIrrelevant occs typ = typ {unEl = go occs (unEl typ)}
+      where
+        go ::[Occurrence] -> Term -> Term
+        go (Unused : ts) (Pi dt at) =
+          Pi ((flip mapArgInfo) dt $ setRelevance Irrelevant)
+             (at {unAbs = makeIrrelevant ts (unAbs at)})
+        go (_ : ts) (Pi dt at) =
+          Pi dt (at {unAbs = makeIrrelevant ts (unAbs at)})
+        go [] other = other
+        go _             _ = __IMPOSSIBLE__
 
 -- | Check if there is a inferred eta record type in the mutual block.
 --   If yes, repeat the record pattern translation for all function definitions
