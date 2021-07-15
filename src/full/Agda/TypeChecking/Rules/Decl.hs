@@ -258,21 +258,8 @@ mutualChecks mi d ds mid names = do
 
   namesTBU <- fmap join $ forM nameList $ \name -> do
     d <- getConstInfo name
-
-{--    let defn = theDef d
-    case defn of
-      Function{..} -> do
-        reportSLn "tc.decl.treeless" 5 $ "found a function (showing inverse)"
-        reportSDoc "tc.decl.treeless" 5 $ pretty $ defName d
-        reportSLn "tc.decl.treeless" 5 $ show $ funInv
-      otherwise -> return () --}
-
     let occ = defArgOccurrences d
     modifySignature $ updateDefinition name $ updateDefType $ makeIrrelevantType occ
-
-{--    reportS "tc.decl.mutual" 5 $ ("Looking at: " ++) $ prettyShow name
-       reportSDoc "tc.decl.mutual" 5 $ pretty $ theDef d
---}
     if (elem Unused occ)
     then return [(name, occ)]
     else return []
@@ -282,13 +269,6 @@ mutualChecks mi d ds mid names = do
     d' <- traverseTermM
             (\case
                 Def q el -> do
-{--               reportSLn "tc.decl.mutual" 5 $ "Pre-traversal, found a Def"
-                  reportSDoc "tc.decl.mutual" 5 $ pretty $ q
-                  reportSLn "tc.decl.mutual" 5 $ "Looking for"
-                  reportSDoc "tc.decl.mutual" 5 $ pretty $ namesTBU
-                  reportSLn "tc.decl.mutual" 5 $ ("Actually in: " ++) $ show $ elem q $ map fst $ namesTBU
-                  reportSDoc "tc.decl.mutual" 5 $ pretty $ el
-                  reportSLn "tc.decl.mutual" 5 $ show el --}
                   let l = lookup q namesTBU
                   return $ Def q $ if isJust l
                                    then map (\case
@@ -300,19 +280,6 @@ mutualChecks mi d ds mid names = do
             d
     modifySignature $ updateDefinition name $ const d'
 
-    dd <- getConstInfo name
-    _ <- traverseTermM
-           (\case
-               Def q el -> do
-                 reportSLn "tc.decl.mutual" 5 $ "Post-traversal, found a Def"
-                 reportSDoc "tc.decl.mutual" 5 $ pretty $ q
-                 reportSDoc "tc.decl.mutual" 5 $ pretty $ el
-                 reportSLn "tc.decl.mutual" 5 $ show el
-                 return $ Def q el
-               otherwise -> return otherwise)
-           dd
-    return ()
-
   -- Andreas, 2013-02-27: check termination before injectivity,
   -- to avoid making the injectivity checker loop.
   localTC (\ e -> e { envMutualBlock = Just mid }) $
@@ -320,6 +287,18 @@ mutualChecks mi d ds mid names = do
   revisitRecordPatternTranslation nameList -- Andreas, 2016-11-19 issue #2308
 
   mapM_ checkIApplyConfluence_ nameList
+  where
+    makeIrrelevantType :: [Occurrence] -> Type -> Type
+    makeIrrelevantType occs typ = typ {unEl = go occs (unEl typ)}
+      where
+        go ::[Occurrence] -> Term -> Term
+        go (Unused : ts) (Pi dt at) =
+          Pi ((flip mapArgInfo) dt $ setRelevance Irrelevant)
+             (at {unAbs = makeIrrelevantType ts (unAbs at)})
+        go (_ : ts) (Pi dt at) =
+          Pi dt (at {unAbs = makeIrrelevantType ts (unAbs at)})
+        go [] other = other
+        go _             _ = __IMPOSSIBLE__
 
   -- Andreas, 2015-03-26 Issue 1470:
   -- Restricting coinduction to recursive does not solve the
@@ -344,24 +323,6 @@ mutualChecks mi d ds mid names = do
   checkInjectivity_        names
   checkProjectionLikeness_ names
 
-  where
-    makeIrrelevantType :: [Occurrence] -> Type -> Type
-    makeIrrelevantType occs typ = typ {unEl = go occs (unEl typ)}
-      where
-        go ::[Occurrence] -> Term -> Term
-        go (Unused : ts) (Pi dt at) =
-          Pi ((flip mapArgInfo) dt $ setRelevance Irrelevant)
-             (at {unAbs = makeIrrelevantType ts (unAbs at)})
-        go (_ : ts) (Pi dt at) =
-          Pi dt (at {unAbs = makeIrrelevantType ts (unAbs at)})
-        go [] other = other
-        go _             _ = __IMPOSSIBLE__
-
-    makeIrrelevantTerm :: [Occurrence] -> Term -> Term
-    makeIrrelevantTerm occs term = fst $ flip St.runState (occs, False) $ traverseTermM go term
-      where
-        go :: Term -> St.State ([Occurrence], Bool) Term
-        go t = undefined
 -- | Check if there is a inferred eta record type in the mutual block.
 --   If yes, repeat the record pattern translation for all function definitions
 --   in the block.
