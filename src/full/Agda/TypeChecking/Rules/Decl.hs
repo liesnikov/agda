@@ -287,19 +287,6 @@ mutualChecks mi d ds mid names = do
   revisitRecordPatternTranslation nameList -- Andreas, 2016-11-19 issue #2308
 
   mapM_ checkIApplyConfluence_ nameList
-  where
-    makeIrrelevantType :: [Occurrence] -> Type -> Type
-    makeIrrelevantType occs typ = typ {unEl = go occs (unEl typ)}
-      where
-        go ::[Occurrence] -> Term -> Term
-        go (Unused : ts) (Pi dt at) =
-          Pi ((flip mapArgInfo) dt $ setRelevance Irrelevant)
-             (at {unAbs = makeIrrelevantType ts (unAbs at)})
-        go (_ : ts) (Pi dt at) =
-          Pi dt (at {unAbs = makeIrrelevantType ts (unAbs at)})
-        go [] other = other
-        go _             _ = __IMPOSSIBLE__
-
   -- Andreas, 2015-03-26 Issue 1470:
   -- Restricting coinduction to recursive does not solve the
   -- actual problem, and prevents interesting sound applications
@@ -322,6 +309,19 @@ mutualChecks mi d ds mid names = do
   -- more instances of injectivity can be recognized.
   checkInjectivity_        names
   checkProjectionLikeness_ names
+
+  where
+    makeIrrelevantType :: [Occurrence] -> Type -> Type
+    makeIrrelevantType occs typ = typ {unEl = go occs (unEl typ)}
+      where
+        go ::[Occurrence] -> Term -> Term
+        go (Unused : ts) (Pi dt at) =
+          Pi ((flip mapArgInfo) dt $ setRelevance Irrelevant)
+             (at {unAbs = makeIrrelevantType ts (unAbs at)})
+        go (_ : ts) (Pi dt at) =
+          Pi dt (at {unAbs = makeIrrelevantType ts (unAbs at)})
+        go [] other = other
+        go _             _ = __IMPOSSIBLE__
 
 -- | Check if there is a inferred eta record type in the mutual block.
 --   If yes, repeat the record pattern translation for all function definitions
