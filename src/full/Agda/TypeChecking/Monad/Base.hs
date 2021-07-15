@@ -1839,6 +1839,33 @@ defaultDefn info x t def = Defn
   , theDef            = def
   }
 
+instance TermLike Definition where
+  foldTerm f d = __IMPOSSIBLE__
+
+  traverseTermM f d@(Defn{..}) = do
+--  defArgInfo' <- traverseTermM f $ defArgInfo d
+--  defName' <- defName d
+    defType' <- traverseTermM f defType
+--  defPolarity' <- defPolarity d
+--  defArgOccurrences' <- defArgOccurrences d
+--  defArgGeneralizable' <- defArgGeneralizable d
+--  defGeneralizedParams' <- defGeneralizedParams d
+--  defDisplay' <- defDisplay d
+--  defMutual' <- defMutual d
+--  defCompiledRep' <- defCompiledRep d
+--  defInstance' <- defInstance d
+--  defCopy' <- defCopy d
+--  defMatchable' <- defMatchable d
+--  defNoCompilation' <- defNoCompilation d
+--  defInjective' <- defInjective d
+--  defCopatternLHS' <- defCopatternLHS d
+--  defBlocked' <- defBlocked d
+    theDef' <- traverseTermM f theDef
+    return $ d {
+        defType = defType'
+      , theDef = theDef'
+      }
+
 -- | Polarity for equality and subtype checking.
 data Polarity
   = Covariant      -- ^ monotone
@@ -2137,6 +2164,101 @@ data Defn = Axiom -- ^ Postulate
             , primSort :: Sort
             }
     deriving (Data, Show, Generic)
+
+instance TermLike Defn where
+  foldTerm f c = __IMPOSSIBLE__
+
+  traverseTermM f Axiom = return $ Axiom
+  traverseTermM f d@(DataOrRecSig _) = return $ d
+  traverseTermM f d@(GeneralizableVar) = return $ d
+  traverseTermM f   (AbstractDefn a) = AbstractDefn <$> traverseTermM f a
+  traverseTermM f d@(Function{..}) = do
+    funClauses' <- traverseTermM f funClauses
+    funCompiled' <- traverseTermM f funCompiled
+-- TODO: declare instance
+-- or don't? Treeless representation isn't there anyway where we're traversing it
+--   funTreeless' <- traverseTermM f funTreeless
+    funCovering' <- traverseTermM f funCovering
+    funInv' <- traverseTermM f funInv
+    return $ d { funClauses = funClauses'
+               , funCompiled = funCompiled'
+-- TODO: declare instance
+-- or don't? Treeless representation isn't there anyway where we're traversing it
+--             , funTreeless = funTreeless'
+               , funCovering = funCovering'
+               , funInv = funInv'
+               }
+  traverseTermM f d@(Datatype{..}) = do
+    dataClause' <- traverseTermM f dataClause
+    dataSort' <- traverseTermM f dataSort
+    return $ d { dataClause = dataClause'
+               , dataSort = dataSort'
+               }
+  traverseTermM f d@(Record{..}) = do
+    recClause' <- traverseTermM f recClause
+    recFields' <- traverseTermM f recFields
+    recTel' <- traverseTermM f recTel
+    return $ d { recClause = recClause'
+               , recFields = recFields'
+               , recTel = recTel'
+               }
+  traverseTermM f d@(Constructor{..}) = return d
+  traverseTermM f d@(Primitive{..}) = do
+    primClauses' <- traverseTermM f primClauses
+    primInv' <- traverseTermM f primInv
+    primCompiled' <- traverseTermM f primCompiled
+    return $ d { primClauses = primClauses'
+               , primInv = primInv'
+               , primCompiled = primCompiled'
+               }
+  traverseTermM f d@(PrimitiveSort{..}) = (\s -> d {primSort = s}) <$> traverseTermM f primSort
+
+instance TermLike Clause where
+  foldTerm f c = __IMPOSSIBLE__
+
+  traverseTermM f c@(Clause{..}) = do
+    clauseTel' <- traverseTermM f clauseTel
+    namedClausePats' <- traverseTermM f namedClausePats
+    clauseBody' <- traverseTermM f clauseBody
+    clauseType' <- traverseTermM f clauseType
+    return $ c { clauseTel = clauseTel'
+               , namedClausePats = namedClausePats'
+               , clauseBody = clauseBody'
+               , clauseType = clauseType'
+               }
+
+instance (TermLike a) => TermLike (Named_ a) where
+  foldTerm f n = __IMPOSSIBLE__
+  traverseTermM f n@(Named{..}) = do
+    namedThing' <- traverseTermM f namedThing
+    return $ n { namedThing = namedThing'}
+
+instance TermLike DBPatVar where
+  foldTerm f p = mempty
+  traverseTermM f p = return p
+
+instance (TermLike a) => TermLike (Pattern' a) where
+  foldTerm f p = __IMPOSSIBLE__
+
+  traverseTermM f (VarP i x) = do
+    x' <- traverseTermM f x
+    return $ VarP i x
+  traverseTermM f (DotP i t) = do
+    t' <- traverseTermM f t
+    return $ DotP i t'
+  traverseTermM f (ConP h i l) = do
+    l' <- traverseTermM f l
+    return $ ConP h i l'
+  traverseTermM f p@(LitP _ _) = return p
+  traverseTermM f p@(ProjP _ _) = return p
+  traverseTermM f (IApplyP i t u x) = do
+    t' <- traverseTermM f t
+    u' <- traverseTermM f u
+    x' <- traverseTermM f x
+    return $ IApplyP i t' u' x'
+  traverseTermM f (DefP i n l) = do
+    l' <- traverseTermM f l
+    return $ DefP i n l'
 
 instance Pretty Definition where
   pretty Defn{..} =
@@ -2525,6 +2647,13 @@ data FunctionInverse' c
   = NotInjective
   | Inverse (InversionMap c)
   deriving (Data, Show, Functor, Generic)
+
+-- TODO: implement instance
+instance TermLike a => TermLike (FunctionInverse' a) where
+  foldTerm f i = __IMPOSSIBLE__
+
+  traverseTermM f (NotInjective) = return NotInjective
+  traverseTermM f (Inverse m) = Inverse <$> traverse (traverseTermM f) m
 
 data TermHead = SortHead
               | PiHead

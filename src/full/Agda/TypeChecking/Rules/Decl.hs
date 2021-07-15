@@ -5,6 +5,7 @@ module Agda.TypeChecking.Rules.Decl where
 import Prelude hiding ( null )
 
 import Control.Monad
+import qualified Control.Monad.State as St
 import Control.Monad.Writer (tell)
 
 import Data.Either (partitionEithers)
@@ -20,6 +21,7 @@ import Agda.Interaction.Options
 import qualified Agda.Syntax.Abstract as A
 import Agda.Syntax.Abstract.Views (deepUnscopeDecl, deepUnscopeDecls)
 import Agda.Syntax.Internal
+import Agda.Syntax.Internal.Generic (TermLike(..))
 import qualified Agda.Syntax.Info as Info
 import Agda.Syntax.Position
 import Agda.Syntax.Common
@@ -241,7 +243,7 @@ checkDecl d = setCurrentRange d $ do
                          => i -> m a -> m a
     checkMaybeAbstractly = localTC . set lensIsAbstract . anyIsAbstract
 
--- Some checks that should be run at the end of a mutual block. The
+-- Some checks that should be run at the end of a mutual bloctk. The
 -- set names contains the names defined in the mutual block.
 mutualChecks :: Info.MutualInfo -> A.Declaration -> [A.Declaration] -> MutualId -> Set QName -> TCM ()
 mutualChecks mi d ds mid names = do
@@ -254,13 +256,62 @@ mutualChecks mi d ds mid names = do
   modifyAllowedReductions (SmallSet.delete UnconfirmedReductions) $
     checkPositivity_ mi names
 
-  forM_ names $ \n -> do
-    d <- getConstInfo n
+  namesTBU <- fmap join $ forM nameList $ \name -> do
+    d <- getConstInfo name
+
+{--    let defn = theDef d
+    case defn of
+      Function{..} -> do
+        reportSLn "tc.decl.treeless" 5 $ "found a function (showing inverse)"
+        reportSDoc "tc.decl.treeless" 5 $ pretty $ defName d
+        reportSLn "tc.decl.treeless" 5 $ show $ funInv
+      otherwise -> return () --}
+
     let occ = defArgOccurrences d
-    modifySignature $ updateDefinition n $ updateDefType $ makeIrrelevant occ
-    reportS "tc.decl.mutual" 5 $ ("Looking at: " ++) $ prettyShow n
-    reportSDoc "tc.decl.mutual" 5 $ pretty $ theDef d
-    --traverseTermM (const . return $ undefined) $ undefined
+    modifySignature $ updateDefinition name $ updateDefType $ makeIrrelevantType occ
+
+{--    reportS "tc.decl.mutual" 5 $ ("Looking at: " ++) $ prettyShow name
+       reportSDoc "tc.decl.mutual" 5 $ pretty $ theDef d
+--}
+    if (elem Unused occ)
+    then return [(name, occ)]
+    else return []
+
+  forM_ names $ \name -> do
+    d <- getConstInfo name
+    d' <- traverseTermM
+            (\case
+                Def q el -> do
+{--               reportSLn "tc.decl.mutual" 5 $ "Pre-traversal, found a Def"
+                  reportSDoc "tc.decl.mutual" 5 $ pretty $ q
+                  reportSLn "tc.decl.mutual" 5 $ "Looking for"
+                  reportSDoc "tc.decl.mutual" 5 $ pretty $ namesTBU
+                  reportSLn "tc.decl.mutual" 5 $ ("Actually in: " ++) $ show $ elem q $ map fst $ namesTBU
+                  reportSDoc "tc.decl.mutual" 5 $ pretty $ el
+                  reportSLn "tc.decl.mutual" 5 $ show el --}
+                  let l = lookup q namesTBU
+                  return $ Def q $ if isJust l
+                                   then map (\case
+                                                (Apply arg, Unused) -> Apply $ setRelevance Irrelevant arg
+                                                (other, _) -> other)
+                                            $ zip el (fromJust l)
+                                   else el
+                otherwise -> return otherwise)
+            d
+    modifySignature $ updateDefinition name $ const d'
+
+    dd <- getConstInfo name
+    _ <- traverseTermM
+           (\case
+               Def q el -> do
+                 reportSLn "tc.decl.mutual" 5 $ "Post-traversal, found a Def"
+                 reportSDoc "tc.decl.mutual" 5 $ pretty $ q
+                 reportSDoc "tc.decl.mutual" 5 $ pretty $ el
+                 reportSLn "tc.decl.mutual" 5 $ show el
+                 return $ Def q el
+               otherwise -> return otherwise)
+           dd
+    return ()
 
   -- Andreas, 2013-02-27: check termination before injectivity,
   -- to avoid making the injectivity checker loop.
@@ -294,18 +345,23 @@ mutualChecks mi d ds mid names = do
   checkProjectionLikeness_ names
 
   where
-    makeIrrelevant :: [Occurrence] -> Type -> Type
-    makeIrrelevant occs typ = typ {unEl = go occs (unEl typ)}
+    makeIrrelevantType :: [Occurrence] -> Type -> Type
+    makeIrrelevantType occs typ = typ {unEl = go occs (unEl typ)}
       where
         go ::[Occurrence] -> Term -> Term
         go (Unused : ts) (Pi dt at) =
           Pi ((flip mapArgInfo) dt $ setRelevance Irrelevant)
-             (at {unAbs = makeIrrelevant ts (unAbs at)})
+             (at {unAbs = makeIrrelevantType ts (unAbs at)})
         go (_ : ts) (Pi dt at) =
-          Pi dt (at {unAbs = makeIrrelevant ts (unAbs at)})
+          Pi dt (at {unAbs = makeIrrelevantType ts (unAbs at)})
         go [] other = other
         go _             _ = __IMPOSSIBLE__
 
+    makeIrrelevantTerm :: [Occurrence] -> Term -> Term
+    makeIrrelevantTerm occs term = fst $ flip St.runState (occs, False) $ traverseTermM go term
+      where
+        go :: Term -> St.State ([Occurrence], Bool) Term
+        go t = undefined
 -- | Check if there is a inferred eta record type in the mutual block.
 --   If yes, repeat the record pattern translation for all function definitions
 --   in the block.
