@@ -8,6 +8,7 @@ import Control.Monad
 import qualified Control.Monad.State as St
 import Control.Monad.Writer (tell)
 
+import Data.Bool (bool)
 import Data.Either (partitionEithers)
 import qualified Data.Foldable as Fold
 import Data.Maybe
@@ -34,6 +35,7 @@ import qualified Agda.TypeChecking.Monad.Benchmark as Bench
 
 import Agda.TypeChecking.Constraints
 import Agda.TypeChecking.Conversion
+import Agda.TypeChecking.Empty (isEmptyType)
 import Agda.TypeChecking.IApplyConfluence
 import Agda.TypeChecking.Generalize
 import Agda.TypeChecking.Injectivity
@@ -258,10 +260,38 @@ mutualChecks mi d ds mid names = do
 
   namesTBU <- fmap join $ forM nameList $ \name -> do
     d <- getConstInfo name
-    let occ = defArgOccurrences d
-    modifySignature $ updateDefinition name $ updateDefType $ makeIrrelevantType occ
-    if (elem Unused occ)
-    then return [(name, occ)]
+
+    _ <- traverseTermM
+           (\case
+               Def q el -> do
+                 reportSLn "tc.decl.mutual" 5 $ "Pre-traversal, found a Def"
+                 reportSDoc "tc.decl.mutual" 5 $ pretty $ q
+                 reportSDoc "tc.decl.mutual" 5 $ pretty $ el
+                 reportSDoc "tc.decl.mutual" 5 $ text $ show el
+                 return $ Def q el
+               otherwise -> return otherwise)
+           d
+
+    let occToRel = \case
+          Unused -> Irrelevant
+          _ -> Relevant
+        occPos = map occToRel . defArgOccurrences $ d
+
+    argTelView <- telView $ defType d
+    let argTypes = map unDom . flattenTel . theTel $ argTelView
+    reportSDoc "tc.decl.mutual" 5 $ text $ "analyzing a definition"
+    reportSDoc "tc.decl.mutual" 5 $ pretty $ name
+    reportSDoc "tc.decl.mutual" 5 $ text $ "its argtypes:"
+    reportSDoc "tc.decl.mutual" 5 $ pretty $ argTypes
+    typePos <- fmap (map $ bool Irrelevant Relevant) $ traverse isEmptyType argTypes
+    -- let typePos = repeat Irrelevant
+
+    let irrPos = zipWith max occPos typePos
+    reportSDoc "tc.decl.mutual" 5 $ text $ "inferred argument relevances:"
+    reportSDoc "tc.decl.mutual" 5 $ text $ show $ irrPos
+    modifySignature $ updateDefinition name $ updateDefType $ makeIrrelevantType irrPos
+    if (elem Irrelevant irrPos)
+    then return [(name, irrPos)]
     else return []
 
   forM_ names $ \name -> do
@@ -272,13 +302,26 @@ mutualChecks mi d ds mid names = do
                   let l = lookup q namesTBU
                   return $ Def q $ if isJust l
                                    then map (\case
-                                                (Apply arg, Unused) -> Apply $ setRelevance Irrelevant arg
+                                                (Apply arg, Irrelevant) -> Apply $ setRelevance Irrelevant arg
                                                 (other, _) -> other)
                                             $ zip el (fromJust l)
                                    else el
                 otherwise -> return otherwise)
             d
     modifySignature $ updateDefinition name $ const d'
+
+    dd <- getConstInfo name
+    _ <- traverseTermM
+           (\case
+               Def q el -> do
+                 reportSLn "tc.decl.mutual" 5 $ "Post-traversal, found a Def"
+                 reportSDoc "tc.decl.mutual" 5 $ pretty $ q
+                 reportSDoc "tc.decl.mutual" 5 $ pretty $ el
+                 reportSDoc "tc.decl.mutual" 5 $ text $ show el
+                 return $ Def q el
+               otherwise -> return otherwise)
+           dd
+    return ()
 
   -- Andreas, 2013-02-27: check termination before injectivity,
   -- to avoid making the injectivity checker loop.
@@ -311,11 +354,11 @@ mutualChecks mi d ds mid names = do
   checkProjectionLikeness_ names
 
   where
-    makeIrrelevantType :: [Occurrence] -> Type -> Type
+    makeIrrelevantType :: [Relevance] -> Type -> Type
     makeIrrelevantType occs typ = typ {unEl = go occs (unEl typ)}
       where
-        go ::[Occurrence] -> Term -> Term
-        go (Unused : ts) (Pi dt at) =
+        go ::[Relevance] -> Term -> Term
+        go (Irrelevant : ts) (Pi dt at) =
           Pi ((flip mapArgInfo) dt $ setRelevance Irrelevant)
              (at {unAbs = makeIrrelevantType ts (unAbs at)})
         go (_ : ts) (Pi dt at) =
