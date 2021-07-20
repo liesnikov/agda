@@ -2168,7 +2168,7 @@ data Defn = Axiom -- ^ Postulate
 instance TermLike Defn where
   foldTerm f c = __IMPOSSIBLE__
 
-  traverseTermM f Axiom = return $ Axiom
+  traverseTermM f d@(Axiom _)= return $ d
   traverseTermM f d@(DataOrRecSig _) = return $ d
   traverseTermM f d@(GeneralizableVar) = return $ d
   traverseTermM f   (AbstractDefn a) = AbstractDefn <$> traverseTermM f a
@@ -2202,7 +2202,7 @@ instance TermLike Defn where
                , recFields = recFields'
                , recTel = recTel'
                }
-  traverseTermM f d@(Constructor{..}) = return d
+  traverseTermM f d@(Constructor{}) = return d
   traverseTermM f d@(Primitive{..}) = do
     primClauses' <- traverseTermM f primClauses
     primInv' <- traverseTermM f primInv
