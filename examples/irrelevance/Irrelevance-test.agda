@@ -7,13 +7,13 @@ open import Agda.Builtin.Bool as Bool
 --module IrrelevantUnused where
 --  f : Bool → Bool
 --  f x = true
---  
+--
 --  f1 : Bool → Bool
 --  f1 _ = f false
---  
+--
 --  f2 : Bool → .Bool → Bool
 --  f2 _ y = f y
---  
+--
 --  f3 : Bool
 --  f3 = f2 true false
 --
@@ -41,4 +41,4 @@ module IrrelevantEmpty where
 
   g : .False → Bool
   g p = f p
-  
+
