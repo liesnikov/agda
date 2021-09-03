@@ -140,7 +140,7 @@ data PragmaOptions = PragmaOptions
   , optCompletenessCheck         :: Bool
   , optUniverseCheck             :: Bool
   , optOmegaInOmega              :: Bool
-  , optSubtyping                 :: WithDefault 'False
+  , optSubtyping                 :: WithDefault 'True
   , optCumulativity              :: Bool
   , optSizedTypes                :: WithDefault 'False
   , optGuardedness               :: WithDefault 'False
