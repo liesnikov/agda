@@ -77,6 +77,12 @@ import Agda.Utils.Size
 import Agda.Utils.Update
 import qualified Agda.Utils.SmallSet as SmallSet
 
+-- for isBuiltins
+import qualified Agda.Interaction.Options.Lenses as Lens
+import Agda.TypeChecking.Monad.Env (getCurrentPath)
+import Agda.Utils.FileName
+
+
 import Agda.Utils.Impossible
 
 -- | Cached checkDecl
@@ -258,70 +264,91 @@ mutualChecks mi d ds mid names = do
   modifyAllowedReductions (SmallSet.delete UnconfirmedReductions) $
     checkPositivity_ mi names
 
-  namesTBU <- fmap join $ forM nameList $ \name -> do
-    d <- getConstInfo name
 
-    _ <- traverseTermM
-           (\case
-               Def q el -> do
-                 reportSLn "tc.decl.mutual" 5 $ "Pre-traversal, found a Def"
-                 reportSDoc "tc.decl.mutual" 5 $ pretty $ q
-                 reportSDoc "tc.decl.mutual" 5 $ pretty $ el
-                 reportSDoc "tc.decl.mutual" 5 $ text $ show el
-                 return $ Def q el
-               otherwise -> return otherwise)
-           d
+  -- irrelevance analysis?
+  isBuiltin <- Lens.isBuiltinModule . filePath =<< getCurrentPath
+  when (not isBuiltin) $ do
+    namesTBU <- fmap join $ forM nameList $ \name -> do
+      d <- getConstInfo name
 
-    let occToRel = \case
-          Unused -> Irrelevant
-          _ -> Relevant
-        occPos = map occToRel . defArgOccurrences $ d
+      let occToRel = \case
+            Unused -> Irrelevant
+            _ -> Relevant
+          occPos = map occToRel . defArgOccurrences $ d
 
-    argTelView <- telView $ defType d
-    let argTypes = map unDom . flattenTel . theTel $ argTelView
-    reportSDoc "tc.decl.mutual" 5 $ text $ "analyzing a definition"
-    reportSDoc "tc.decl.mutual" 5 $ pretty $ name
-    reportSDoc "tc.decl.mutual" 5 $ text $ "its argtypes:"
-    reportSDoc "tc.decl.mutual" 5 $ pretty $ argTypes
-    typePos <- fmap (map $ bool Irrelevant Relevant) $ traverse isEmptyType argTypes
-    -- let typePos = repeat Irrelevant
+      argTelView <- telView $ defType d
+      let argTel = theTel $ argTelView
+          argNames = teleNames argTel
+          argDoms = flattenTel $ argTel
 
-    let irrPos = zipWith max occPos typePos
-    reportSDoc "tc.decl.mutual" 5 $ text $ "inferred argument relevances:"
-    reportSDoc "tc.decl.mutual" 5 $ text $ show $ irrPos
-    modifySignature $ updateDefinition name $ updateDefType $ makeIrrelevantType irrPos
-    if (elem Irrelevant irrPos)
-    then return [(name, irrPos)]
-    else return []
+      let blockedPos =
+            map (\x -> bool Relevant Irrelevant . null . IntSet.delete x . varDependencies argTel . IntSet.singleton $ x)
+                [0..(size argTel - 1)]
 
-  forM_ names $ \name -> do
-    d <- getConstInfo name
-    d' <- traverseTermM
-            (\case
-                Def q el -> do
-                  let l = lookup q namesTBU
-                  return $ Def q $ if isJust l
-                                   then map (\case
-                                                (Apply arg, Irrelevant) -> Apply $ setRelevance Irrelevant arg
-                                                (other, _) -> other)
-                                            $ zip el (fromJust l)
-                                   else el
-                otherwise -> return otherwise)
-            d
-    modifySignature $ updateDefinition name $ const d'
+      reportSDoc "tc.decl.mutual" 5 $ text $ "analyzing a definition"
+      reportSDoc "tc.decl.mutual" 5 $ pretty $ name
+      reportSDoc "tc.decl.mutual" 5 $ text $ "its argtypes:"
+      reportSDoc "tc.decl.mutual" 5 $ pretty $ argDoms
 
-    dd <- getConstInfo name
-    _ <- traverseTermM
-           (\case
-               Def q el -> do
-                 reportSLn "tc.decl.mutual" 5 $ "Post-traversal, found a Def"
-                 reportSDoc "tc.decl.mutual" 5 $ pretty $ q
-                 reportSDoc "tc.decl.mutual" 5 $ pretty $ el
-                 reportSDoc "tc.decl.mutual" 5 $ text $ show el
-                 return $ Def q el
-               otherwise -> return otherwise)
-           dd
-    return ()
+      let init = (return True, [])
+      typePos <- fmap (map $ bool Relevant Irrelevant) $
+                 sequenceA $ map fst $ tail $
+                 scanl (\ (_, c) t ->
+                          (let ns = take (length c) argNames
+                           in addContext (unflattenTel ns c) $ isEmptyType . unDom $ t,
+                           c ++ [t]))
+                 init argDoms
+
+      let irrPos = zipWith min blockedPos $ zipWith max occPos typePos
+
+      reportSDoc "tc.decl.mutual" 5 $ text $ "its occPos:"
+      reportSDoc "tc.decl.mutual" 5 $ text $ show $ occPos
+      reportSDoc "tc.decl.mutual" 5 $ text $ "its emptyPos:"
+      reportSDoc "tc.decl.mutual" 5 $ text $ show $ typePos
+      reportSDoc "tc.decl.mutual" 5 $ text $ "its blockedPos:"
+      reportSDoc "tc.decl.mutual" 5 $ text $ show $ blockedPos
+      reportSDoc "tc.decl.mutual" 5 $ text $ "inferred argument relevances:"
+      reportSDoc "tc.decl.mutual" 5 $ text $ show $ irrPos
+      reportSDoc "tc.decl.mutual" 5 $ text $ "done with"
+      reportSDoc "tc.decl.mutual" 5 $ pretty $ name
+
+      let isFun = case theDef d of
+            (Function {}) -> True
+            _ -> False
+      if (isFun && elem Irrelevant irrPos)
+      then do
+       (modifySignature $ updateDefinition name $ updateDefType $ makeIrrelevantType irrPos)
+       return [(name, irrPos)]
+      else return []
+
+    forM_ names $ \name -> do
+      d <- getConstInfo name
+      d' <- traverseTermM
+              (\case
+                  Def q el -> do
+                    let l = lookup q namesTBU
+                    return $ Def q $ if isJust l
+                                     then map (\case
+                                                  (Apply arg, Irrelevant) -> Apply $ setRelevance Irrelevant arg
+                                                  (other, _) -> other)
+                                              $ zip el (fromJust l)
+                                     else el
+                  otherwise -> return otherwise)
+              d
+      modifySignature $ updateDefinition name $ const d'
+
+--       dd <- getConstInfo name
+--       _ <- traverseTermM
+--              (\case
+--                  Def q el -> do
+--                    reportSLn "tc.decl.mutual" 5 $ "Post-traversal, found a Def"
+--                    reportSDoc "tc.decl.mutual" 5 $ pretty $ q
+--                    reportSDoc "tc.decl.mutual" 5 $ pretty $ el
+--                    reportSDoc "tc.decl.mutual" 5 $ text $ show el
+--                    return $ Def q el
+--                  otherwise -> return otherwise)
+--              dd
+      return ()
 
   -- Andreas, 2013-02-27: check termination before injectivity,
   -- to avoid making the injectivity checker loop.
