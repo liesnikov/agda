@@ -25,6 +25,7 @@ import Agda.Syntax.Parser.Alex
 import Agda.Syntax.Parser.Monad
 
 import Agda.Utils.Null (ifNull)
+import Agda.Utils.Maybe (caseMaybeM, fromMaybeM)
 
 {--------------------------------------------------------------------------
     The look-ahead monad
@@ -69,13 +70,17 @@ liftP = LookAhead . lift . lift
 
 -- | Look at the next character. Fails if there are no more characters.
 nextChar :: LookAhead Char
-nextChar =
+nextChar = fromMaybeM (lookAheadError "unexpected end of file") nextCharMaybe
+
+-- | Look at the next character. Return 'Nothing' if there are no more characters.
+nextCharMaybe :: LookAhead (Maybe Char)
+nextCharMaybe =
     do  inp <- getInput
         case alexGetChar inp of
-            Nothing         -> lookAheadError "unexpected end of file"
+            Nothing         -> return Nothing
             Just (c,inp')   ->
                 do  setInput inp'
-                    return c
+                    return $ Just c
 
 
 -- | Consume all the characters up to the current look-ahead position.
@@ -104,11 +109,11 @@ eatNextChar =
     move past it and execute the corresponding action. If no string matches, we
     execute a default action, advancing the input one character. This function
     only affects the look-ahead position.
+
+    If we are at the end of file, we just execute the default action.
 -}
 match :: [(String, LookAhead a)] -> LookAhead a -> LookAhead a
-match xs def =
-    do  c <- nextChar
-        match' c xs def
+match xs def = caseMaybeM nextCharMaybe def $ \ c -> match' c xs def
 
 {-| Same as 'match' but takes the initial character from the first argument
     instead of reading it from the input.  Consequently, in the default case
@@ -150,7 +155,7 @@ match' c xs def = do
               pure $ setInput inp >> p
 
         -- Keep trying to find a (longer) match.
-        match'' fallback' bs' =<< nextChar
+        maybe fallback' (match'' fallback' bs') =<< nextCharMaybe
 
 -- | Run a 'LookAhead' computation. The first argument is the error function.
 runLookAhead :: (forall b. String -> LookAhead b) -> LookAhead a -> Parser a
