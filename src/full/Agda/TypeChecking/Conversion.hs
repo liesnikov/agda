@@ -25,6 +25,7 @@ import Agda.TypeChecking.MetaVars
 import Agda.TypeChecking.MetaVars.Occurs (killArgs,PruneResult(..),rigidVarsNotContainedIn)
 import Agda.TypeChecking.Names
 import Agda.TypeChecking.Reduce
+import Agda.TypeChecking.Sort (ifIsSort)
 import Agda.TypeChecking.Substitute
 import qualified Agda.TypeChecking.SyntacticEquality as SynEq
 import Agda.TypeChecking.Telescope
@@ -142,6 +143,26 @@ convError err = ifM ((==) Irrelevant <$> asksTC getRelevance) (return ()) $ type
 compareTerm :: forall m. MonadConversion m => Comparison -> Type -> Term -> Term -> m ()
 compareTerm cmp a u v = compareAs cmp (AsTermsOf a) u v
 
+unlessSubtyping :: forall m. MonadConversion m => Comparison -> CompareAs -> m() -> m () -> m ()
+unlessSubtyping cmp a fallback cont =
+    if cmp == CmpEq then cont else do
+      -- Andreas, 2014-04-12 do not short cut if type is blocked.
+      ifBlocked a (\ _ _ -> fallback) {-else-} $ \ _ a -> do
+        -- do not short circuit size comparison!
+        ifM (allowsSubtyping a) fallback cont
+    where
+      allowsSubtyping :: CompareAs -> m Bool
+      allowsSubtyping cs = do
+        hasSubtyping <- collapseDefault . optSubtyping <$> pragmaOptions
+        case cs of
+          AsSizes -> return True
+          AsTypes -> return hasSubtyping
+          AsTermsOf t -> do
+            ifM (isJust <$> isSizeType t) (return True) $ do
+            if hasSubtyping
+              then ifIsSort t (\_ -> return True) (return False)
+              else return False
+
 -- | Type directed equality on terms or types.
 compareAs :: forall m. MonadConversion m => Comparison -> CompareAs -> Term -> Term -> m ()
   -- If one term is a meta, try to instantiate right away. This avoids unnecessary unfolding.
@@ -171,27 +192,19 @@ compareAs cmp a u v = do
       -- It seems to assume we are never comparing
       -- at function types into Size.
       let fallback = compareAs' cmp a u v
-          unlessSubtyping :: m () -> m ()
-          unlessSubtyping cont =
-              if cmp == CmpEq then cont else do
-                -- Andreas, 2014-04-12 do not short cut if type is blocked.
-                ifBlocked a (\ _ _ -> fallback) {-else-} $ \ _ a -> do
-                  -- do not short circuit size comparison!
-                  caseMaybeM (isSizeType a) cont (\ _ -> fallback)
-
           dir = fromCmp cmp
           rid = flipCmp dir     -- The reverse direction.  Bad name, I know.
       case (u, v) of
         (MetaV x us, MetaV y vs)
-          | x /= y    -> unlessSubtyping $ solve1 `orelse` solve2 `orelse` fallback
+          | x /= y    -> unlessSubtyping cmp a fallback $ solve1 `orelse` solve2 `orelse` fallback
           | otherwise -> fallback
           where
             (solve1, solve2) | x > y     = (assign dir x us v, assign rid y vs u)
                              | otherwise = (assign rid y vs u, assign dir x us v)
-        (MetaV x us, _) -> unlessSubtyping $ assign dir x us v `orelse` fallback
-        (_, MetaV y vs) -> unlessSubtyping $ assign rid y vs u `orelse` fallback
+        (MetaV x us, _) -> unlessSubtyping cmp a fallback $ assign dir x us v `orelse` fallback
+        (_, MetaV y vs) -> unlessSubtyping cmp a fallback $ assign rid y vs u `orelse` fallback
         (Def f es, Def f' es') | f == f' ->
-          ifNotM (optFirstOrder <$> pragmaOptions) fallback $ {- else -} unlessSubtyping $ do
+          ifNotM (optFirstOrder <$> pragmaOptions) fallback $ {- else -} unlessSubtyping cmp a fallback $ do
           def <- getConstInfo f
           -- We do not shortcut projection-likes
           if isJust $ isProjection_ (theDef def) then fallback else do
@@ -214,6 +227,7 @@ compareAs cmp a u v = do
     -- rethrow errors.
     orelse :: m () -> m () -> m ()
     orelse m h = catchError m (\_ -> h)
+
 
 -- | Try to assign meta.  If meta is projected, try to eta-expand
 --   and run conversion check again.
@@ -433,7 +447,9 @@ compareAtom cmp t m n =
       return (mb', nb')
     let getBlocker (Blocked b _) = b
         getBlocker NotBlocked{}  = neverUnblock
-        blocker = unblockOnEither (getBlocker mb') (getBlocker nb')
+        mBlocker = (getBlocker mb')
+        nBlocker = (getBlocker nb')
+        blocker = unblockOnEither mBlocker nBlocker
     reportSLn "tc.conv.atom.size" 50 $ "term size after reduce: " ++ show (termSize $ ignoreBlocking mb', termSize $ ignoreBlocking nb')
 
     -- constructorForm changes literal to constructors
@@ -469,6 +485,7 @@ compareAtom cmp t m n =
       "compareAtom" <+> fsep [ (text . show) mb <+> prettyTCM cmp
                                   , (text . show) nb
                                   , ":" <+> (text . show) t ]
+    let fallback blocker = addConstraint blocker $ ValueCmp cmp t m n
     case (mb, nb) of
       -- equate two metas x and y.  if y is the younger meta,
       -- try first y := x and then x := y
@@ -507,11 +524,11 @@ compareAtom cmp t m n =
                           r2 = ifM (isInstantiatedMeta y) (compareAsDir rid t n m) r1
 
               -- Unblock on both unblockers of solve1 and solve2
-              catchPatternErr (`addOrUnblocker` solve2) solve1
+              unlessSubtyping cmp t (fallback $ unblockOnBoth mBlocker nBlocker) $ catchPatternErr (`addOrUnblocker` solve2) solve1
 
       -- one side a meta
-      _ | MetaV x es <- ignoreBlocking mb -> assign dir x es n
-      _ | MetaV x es <- ignoreBlocking nb -> assign rid x es m
+      _ | MetaV x es <- ignoreBlocking mb -> unlessSubtyping cmp t (fallback mBlocker) $ assign dir x es n
+      _ | MetaV x es <- ignoreBlocking nb -> unlessSubtyping cmp t (fallback nBlocker) $ assign rid x es m
       (Blocked{}, Blocked{}) | not cmpBlocked  -> checkDefinitionalEquality
       (Blocked b _, _) | not cmpBlocked -> useInjectivity (fromCmp cmp) b t m n   -- The blocked term  goes first
       (_, Blocked b _) | not cmpBlocked -> useInjectivity (flipCmp $ fromCmp cmp) b t n m

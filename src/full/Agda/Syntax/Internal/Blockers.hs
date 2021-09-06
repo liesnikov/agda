@@ -98,6 +98,9 @@ unblockOnAny us =
     anyView (UnblockOnAny us) = anyViewS us
     anyView u                 = Set.singleton u
 
+unblockOnBoth :: Blocker -> Blocker -> Blocker
+unblockOnBoth a b = unblockOnAll $ Set.fromList [a, b]
+
 unblockOnEither :: Blocker -> Blocker -> Blocker
 unblockOnEither a b = unblockOnAny $ Set.fromList [a, b]
 
