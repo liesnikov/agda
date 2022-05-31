@@ -464,7 +464,7 @@ underModality = local . mapModality . composeModality . getModality
 
 -- | Changing the 'Relevance'.
 underRelevance :: (MonadReader r m, LensRelevance r, LensRelevance o) => o -> m z -> m z
-underRelevance = local . mapRelevance . composeRelevance . getRelevance
+underRelevance = local . mapRelevance . composeRelevance' . getRelevance
 
 -- | Changing the 'FlexRig' context.
 underFlexRig :: (MonadReader r m, LensFlexRig a r, Semigroup a, LensFlexRig a o) => o -> m z -> m z
@@ -529,7 +529,7 @@ instance Free Term where
     Sort s       -> freeVars' s
     Level l      -> freeVars' l
     MetaV m ts   -> underFlexRig (Flexible $ singleton m) $ freeVars' ts
-    DontCare mt  -> underModality (Modality Irrelevant unitQuantity unitCohesion) $ freeVars' mt
+    DontCare mt  -> underModality (Modality (TrueR Irrelevant) unitQuantity unitCohesion) $ freeVars' mt
     Dummy{}      -> mempty
 
 instance Free t => Free (Type' t) where

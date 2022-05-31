@@ -78,11 +78,24 @@ import Agda.Utils.Impossible
 -- * Definitions by pattern matching
 ---------------------------------------------------------------------------
 
+updateDefArgInfo :: (ArgInfo -> ArgInfo) -> (Definition -> Definition)
+updateDefArgInfo f def = def { defArgInfo = f (defArgInfo def) }
+
+makeIrrelevantArgs :: Type -> Type
+makeIrrelevantArgs t = t {unEl = go (unEl t)}
+  where
+    go :: Term -> Term
+    go (Pi dt at) = Pi ((flip mapArgInfo) dt $ setRelevance Irrelevant)
+                       (at {unAbs = makeIrrelevantArgs (unAbs at)})
+    go other = other
+
 checkFunDef :: Delayed -> A.DefInfo -> QName -> [A.Clause] -> TCM ()
 checkFunDef delayed i name cs = do
         -- Reset blocking tag (in case a previous attempt was blocked)
         modifySignature $ updateDefinition name $ updateDefBlocked $ const $
           NotBlocked MissingClauses ()
+        modifySignature $ updateDefinition name $ updateDefType $ makeIrrelevantArgs
+        modifySignature $ updateDefinition name $ updateDefArgInfo $ mapModality $ setRelevance Irrelevant
         -- Get the type and relevance of the function
         def <- instantiateDef =<< getConstInfo name
         let t    = defType def

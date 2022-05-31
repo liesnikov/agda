@@ -27,6 +27,7 @@ COMPAT_SRC_DIR = $(SRC_DIR)/compat
 # Andreas, 2020-10-26 further refinement:
 # I often switch GHC version, so indexing v1-style build directories
 # by GHC version x.y.z makes sense.
+<<<<<<< Updated upstream
 BUILD_DIR             = $(TOP)/dist-$(VERSION)-ghc-$(GHC_VER)
 QUICK_BUILD_DIR       = $(BUILD_DIR)-quick
 FAST_BUILD_DIR        = $(BUILD_DIR)-fast
@@ -36,6 +37,10 @@ QUICK_DEBUG_BUILD_DIR = $(BUILD_DIR)-debug-quick
 STACK_BUILD_DIR       = .stack-work
 QUICK_STACK_BUILD_DIR = $(STACK_BUILD_DIR)-quick
 FAST_STACK_BUILD_DIR  = $(STACK_BUILD_DIR)-fast
+=======
+BUILD_DIR = $(TOP)/dist-newstyle/build/x86_64-linux/ghc-8.10.4/Agda-2.6.2
+# BUILD_DIR = $(TOP)/dist-$(VERSION)-ghc-$(GHC_VER)
+>>>>>>> Stashed changes
 
 OUT_DIR        = $(TOP)/out
 FULL_OUT_DIR   = $(OUT_DIR)/full

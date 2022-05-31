@@ -552,7 +552,7 @@ applySection' new ptel old ts ScopeCopyInfo{ renNames = rd, renModules = rm } = 
                         , clauseTel       = EmptyTel
                         , namedClausePats = []
                         , clauseBody      = Just $ dropArgs pars $ case oldDef of
-                            Function{funProjection = Just p} -> projDropParsApply p ProjSystem rel ts'
+                            Function{funProjection = Just p} -> projDropParsApply p ProjSystem (TrueR rel) ts'
                             _ -> Def x $ map Apply ts'
                         , clauseType      = Just $ defaultArg t
                         , clauseCatchall  = False
@@ -1207,7 +1207,7 @@ typeOfConst q = defType <$> (instantiateDef =<< getConstInfo q)
 -- | Get relevance of a constant.
 {-# SPECIALIZE relOfConst :: QName -> TCM Relevance #-}
 relOfConst :: HasConstInfo m => QName -> m Relevance
-relOfConst q = getRelevance <$> getConstInfo q
+relOfConst q = TrueR <$> getRelevance <$> getConstInfo q
 
 -- | Get modality of a constant.
 {-# SPECIALIZE modalityOfConst :: QName -> TCM Modality #-}

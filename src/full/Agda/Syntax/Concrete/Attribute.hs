@@ -61,7 +61,7 @@ type LensAttribute a = (LensRelevance a, LensQuantity a, LensCohesion a, LensLoc
 
 -- | Modifiers for 'Relevance'.
 
-relevanceAttributeTable :: [(String, Relevance)]
+relevanceAttributeTable :: [(String, Relevance')]
 relevanceAttributeTable = concat
   [ map (, Irrelevant)  [ "irr", "irrelevant" ]
   , map (, NonStrict)   [ "shirr", "shape-irrelevant" ]
@@ -106,7 +106,7 @@ lockAttributeTable = concat
 
 attributesMap :: Map String Attribute
 attributesMap = Map.fromList $ concat
-  [ map (second RelevanceAttribute) relevanceAttributeTable
+  [ map (second (RelevanceAttribute . TrueR)) relevanceAttributeTable
   , map (second QuantityAttribute)  quantityAttributeTable
   , map (second CohesionAttribute)  cohesionAttributeTable
   , map (second LockAttribute)      lockAttributeTable
@@ -125,9 +125,13 @@ exprToAttribute e = setRange (getRange e) $ stringToAttribute $ prettyShow e
 
 -- | Setting an attribute (in e.g. an 'Arg').  Overwrites previous value.
 
+horribleHack :: Relevance -> Relevance'
+horribleHack (TrueR r) = r
+horribleHack _ = error "irrelevance inference exploded" -- FIXME
+
 setAttribute :: (LensAttribute a) => Attribute -> a -> a
 setAttribute = \case
-  RelevanceAttribute r -> setRelevance r
+  RelevanceAttribute r -> setRelevance . horribleHack $ r
   QuantityAttribute  q -> setQuantity  q
   CohesionAttribute  c -> setCohesion  c
   LockAttribute      l -> setLock      l
@@ -149,7 +153,7 @@ setAttributes attrs arg = foldl' (flip setAttribute) arg attrs
 
 setPristineRelevance :: (LensRelevance a) => Relevance -> a -> Maybe a
 setPristineRelevance r a
-  | getRelevance a == defaultRelevance = Just $ setRelevance r a
+  | getRelevance a == (horribleHack defaultRelevance) = Just $ setRelevance (horribleHack r) a
   | otherwise = Nothing
 
 -- | Setting 'Quantity' if unset.

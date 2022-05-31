@@ -274,6 +274,7 @@ constraintMetas = \case
       CheckMetaInst x          -> return mempty
       CheckLockedVars a b c d  -> return $ allMetas Set.singleton (a, b, c, d)
       UsableAtModality{}       -> return mempty
+      PostponeInference{}      -> return mempty
   where
     -- For blocked constant twin variables
     listenerMetas EtaExpand{}           = return Set.empty

@@ -1,4 +1,10 @@
+<<<<<<< Updated upstream
 {-# LANGUAGE CPP #-}
+=======
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DeriveGeneric              #-}
+>>>>>>> Stashed changes
 
 {-| Some common syntactic entities are defined in this module.
 -}
@@ -563,9 +569,9 @@ instance LensModality Modality where
   mapModality = id
 
 instance LensRelevance Modality where
-  getRelevance = modRelevance
-  setRelevance h m = m { modRelevance = h }
-  mapRelevance f m = m { modRelevance = f (modRelevance m) }
+  getRelevance = getRelevance . modRelevance
+  setRelevance h m = m { modRelevance = setRelevance h (modRelevance m) }
+  mapRelevance f m = m { modRelevance = mapRelevance f (modRelevance m) }
 
 instance LensQuantity Modality where
   getQuantity = modQuantity
@@ -579,13 +585,13 @@ instance LensCohesion Modality where
 
 -- default accessors for Relevance
 
-getRelevanceMod :: LensModality a => LensGet Relevance a
+getRelevanceMod :: LensModality a => LensGet Relevance' a
 getRelevanceMod = getRelevance . getModality
 
-setRelevanceMod :: LensModality a => LensSet Relevance a
+setRelevanceMod :: LensModality a => LensSet Relevance' a
 setRelevanceMod = mapModality . setRelevance
 
-mapRelevanceMod :: LensModality a => LensMap Relevance a
+mapRelevanceMod :: LensModality a => LensMap Relevance' a
 mapRelevanceMod = mapModality . mapRelevance
 
 -- default accessors for Quantity
@@ -1057,9 +1063,25 @@ instance Semigroup (UnderComposition Erased) where
 -- * Relevance
 ---------------------------------------------------------------------------
 
+
+data Relevance
+  = TrueR Relevance'
+  | MetaR MetaId -- ^ Relevance hasn't been inferred yet
+                 -- TODO: do I need more innformation here?
+    deriving (Data, Show, Eq, Generic)
+
+instance Enum Relevance where
+  fromEnum (TrueR r) = fromEnum r
+  fromEnum (MetaR _) = __IMPOSSIBLE__
+  toEnum = TrueR . toEnum
+
+instance Bounded Relevance where
+  minBound = TrueR $ minBound @Relevance'
+  maxBound = TrueR $ maxBound @Relevance'
+
 -- | A function argument can be relevant or irrelevant.
 --   See "Agda.TypeChecking.Irrelevance".
-data Relevance
+data Relevance'
   = Relevant    -- ^ The argument is (possibly) relevant at compile-time.
   | NonStrict   -- ^ The argument may never flow into evaluation position.
                 --   Therefore, it is irrelevant at run-time.
@@ -1079,32 +1101,43 @@ instance SetRange Relevance where
 instance KillRange Relevance where
   killRange rel = rel -- no range to kill
 
-instance NFData Relevance where
+instance NFData Relevance' where
   rnf Relevant   = ()
   rnf NonStrict  = ()
   rnf Irrelevant = ()
+
+instance NFData Relevance where
+  rnf _ = ()
 
 -- | A lens to access the 'Relevance' attribute in data structures.
 --   Minimal implementation: @getRelevance@ and @mapRelevance@ or @LensModality@.
 class LensRelevance a where
 
-  getRelevance :: a -> Relevance
+  getRelevance :: a -> Relevance'
 
-  setRelevance :: Relevance -> a -> a
+  setRelevance :: Relevance' -> a -> a
   setRelevance h = mapRelevance (const h)
 
-  mapRelevance :: (Relevance -> Relevance) -> a -> a
+  mapRelevance :: (Relevance' -> Relevance') -> a -> a
 
-  default getRelevance :: LensModality a => a -> Relevance
-  getRelevance = modRelevance . getModality
+  default getRelevance :: LensModality a => a -> Relevance'
+  getRelevance = getRelevance . modRelevance . getModality
 
-  default mapRelevance :: LensModality a => (Relevance -> Relevance) -> a -> a
-  mapRelevance f = mapModality $ \ ai -> ai { modRelevance = f $ modRelevance ai }
+  default mapRelevance :: LensModality a => (Relevance' -> Relevance') -> a -> a
+  mapRelevance f = mapModality $ \ ai -> ai { modRelevance = mapRelevance f (modRelevance ai) }
 
-instance LensRelevance Relevance where
+instance LensRelevance Relevance' where
   getRelevance = id
   setRelevance = const
   mapRelevance = id
+
+instance LensRelevance Relevance where
+  getRelevance (TrueR r) = getRelevance r
+  getRelevance (MetaR _) = __IMPOSSIBLE__
+
+  setRelevance v = mapRelevance (const v)
+  mapRelevance f (TrueR r) = TrueR $ mapRelevance f r
+  mapRelevance _ (MetaR _) = __IMPOSSIBLE__
 
 isRelevant :: LensRelevance a => a -> Bool
 isRelevant a = getRelevance a == Relevant
@@ -1127,7 +1160,7 @@ sameRelevance :: Relevance -> Relevance -> Bool
 sameRelevance = (==)
 
 -- | More relevant is smaller.
-instance Ord Relevance where
+instance Ord Relevance' where
   compare = curry $ \case
     (r, r') | r == r' -> EQ
     -- top
@@ -1138,6 +1171,10 @@ instance Ord Relevance where
     (_, Relevant) -> GT
     -- redundant case
     (NonStrict,NonStrict) -> EQ
+
+instance Ord Relevance where
+  compare (TrueR a) (TrueR b) = compare a b
+  compare _ _ = __IMPOSSIBLE__
 
 -- | More relevant is smaller.
 instance PartialOrd Relevance where
@@ -1150,8 +1187,8 @@ usableRelevance = isRelevant
 -- | 'Relevance' composition.
 --   'Irrelevant' is dominant, 'Relevant' is neutral.
 --   Composition coincides with 'max'.
-composeRelevance :: Relevance -> Relevance -> Relevance
-composeRelevance r r' =
+composeRelevance' :: Relevance' -> Relevance' -> Relevance'
+composeRelevance' r r' =
   case (r, r') of
     (Irrelevant, _) -> Irrelevant
     (_, Irrelevant) -> Irrelevant
@@ -1159,19 +1196,27 @@ composeRelevance r r' =
     (_, NonStrict)  -> NonStrict
     (Relevant, Relevant) -> Relevant
 
+composeRelevance :: Relevance -> Relevance -> Relevance
+composeRelevance (TrueR a) (TrueR b) = TrueR $ composeRelevance' a b
+composeRelevance _ _ = __IMPOSSIBLE__
+
 -- | Compose with relevance flag from the left.
 --   This function is e.g. used to update the relevance information
 --   on pattern variables @a@ after a match against something @rel@.
+applyRelevance' :: LensRelevance a => Relevance' -> a -> a
+applyRelevance' rel = mapRelevance (rel `composeRelevance'`)
+
 applyRelevance :: LensRelevance a => Relevance -> a -> a
-applyRelevance rel = mapRelevance (rel `composeRelevance`)
+applyRelevance (TrueR rel) = applyRelevance' rel
+applyRelevance (MetaR _) = __IMPOSSIBLE__
 
 -- | @inverseComposeRelevance r x@ returns the most irrelevant @y@
 --   such that forall @x@, @y@ we have
 --   @x \`moreRelevant\` (r \`composeRelevance\` y)@
 --   iff
 --   @(r \`inverseComposeRelevance\` x) \`moreRelevant\` y@ (Galois connection).
-inverseComposeRelevance :: Relevance -> Relevance -> Relevance
-inverseComposeRelevance r x =
+inverseComposeRelevance' :: Relevance' -> Relevance' -> Relevance'
+inverseComposeRelevance' r x =
   case (r, x) of
     (Relevant  , x)          -> x          -- going to relevant arg.: nothing changes
                                            -- because Relevant is comp.-neutral
@@ -1179,10 +1224,18 @@ inverseComposeRelevance r x =
     (NonStrict , Irrelevant) -> Irrelevant -- otherwise: irrelevant things remain unusable
     (NonStrict , _)          -> Relevant   -- but @NonStrict@s become usable
 
+inverseComposeRelevance :: Relevance -> Relevance -> Relevance
+inverseComposeRelevance (TrueR a) (TrueR b) = TrueR $ inverseComposeRelevance' a b
+inverseComposeRelevance _ _ = __IMPOSSIBLE__
+
 -- | Left division by a 'Relevance'.
 --   Used e.g. to modify context when going into a @rel@ argument.
+inverseApplyRelevance' :: LensRelevance a => Relevance' -> a -> a
+inverseApplyRelevance' rel = mapRelevance (rel `inverseComposeRelevance'`)
+
 inverseApplyRelevance :: LensRelevance a => Relevance -> a -> a
-inverseApplyRelevance rel = mapRelevance (rel `inverseComposeRelevance`)
+inverseApplyRelevance (TrueR rel) = inverseApplyRelevance' rel
+inverseApplyRelevance (MetaR _) = __IMPOSSIBLE__
 
 -- | 'Relevance' forms a semigroup under composition.
 instance Semigroup (UnderComposition Relevance) where
@@ -1215,35 +1268,55 @@ addRelevance :: Relevance -> Relevance -> Relevance
 addRelevance = min
 
 -- | 'Relevance' forms a monoid under addition, and even a semiring.
+zeroRelevance' :: Relevance'
+zeroRelevance' = Irrelevant
+
 zeroRelevance :: Relevance
-zeroRelevance = Irrelevant
+zeroRelevance = TrueR $ zeroRelevance'
 
 -- | Identity element under composition
+unitRelevance' :: Relevance'
+unitRelevance' = Relevant
+
 unitRelevance :: Relevance
-unitRelevance = Relevant
+unitRelevance = TrueR $ unitRelevance'
 
 -- | Absorptive element under addition.
+topRelevance' :: Relevance'
+topRelevance' = Relevant
+
 topRelevance :: Relevance
-topRelevance = Relevant
+topRelevance = TrueR $ topRelevance'
 
 -- | Default Relevance is the identity element under composition
 defaultRelevance :: Relevance
 defaultRelevance = unitRelevance
 
 -- | Irrelevant function arguments may appear non-strictly in the codomain type.
+irrToNonStrict' :: Relevance' -> Relevance'
+irrToNonStrict' Irrelevant = NonStrict
+irrToNonStrict' rel        = rel
+
 irrToNonStrict :: Relevance -> Relevance
-irrToNonStrict Irrelevant = NonStrict
-irrToNonStrict rel        = rel
+irrToNonStrict (TrueR a) = TrueR $ irrToNonStrict' a
+irrToNonStrict (MetaR _) = __IMPOSSIBLE__
 
 -- | Applied when working on types (unless --experimental-irrelevance).
+nonStrictToRel' :: Relevance' -> Relevance'
+nonStrictToRel' NonStrict = Relevant
+nonStrictToRel' rel       = rel
+
 nonStrictToRel :: Relevance -> Relevance
-nonStrictToRel NonStrict = Relevant
-nonStrictToRel rel       = rel
+nonStrictToRel (TrueR a) = TrueR $ nonStrictToRel' a
+nonStrictToRel (MetaR _ ) = __IMPOSSIBLE__
+
+nonStrictToIrr' :: Relevance' -> Relevance'
+nonStrictToIrr' NonStrict = Irrelevant
+nonStrictToIrr' rel       = rel
 
 nonStrictToIrr :: Relevance -> Relevance
-nonStrictToIrr NonStrict = Irrelevant
-nonStrictToIrr rel       = rel
-
+nonStrictToIrr (TrueR a) = TrueR $ nonStrictToIrr' a
+nonStrictToIrr (MetaR _) = __IMPOSSIBLE__
 
 ---------------------------------------------------------------------------
 -- * Annotations

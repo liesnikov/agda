@@ -297,6 +297,7 @@ solveConstraint_ (HasBiggerSort a)      = hasBiggerSort a
 solveConstraint_ (HasPTSRule a b)       = hasPTSRule a b
 solveConstraint_ (CheckMetaInst m)      = checkMetaInst m
 solveConstraint_ (UsableAtModality mod t) = usableAtModality mod t
+solveConstraint_ (PostponeInference)    = return ()
 
 checkTypeCheckingProblem :: TypeCheckingProblem -> TCM Term
 checkTypeCheckingProblem = \case

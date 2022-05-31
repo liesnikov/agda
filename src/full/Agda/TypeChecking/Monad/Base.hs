@@ -1081,7 +1081,12 @@ data Constraint
   | UnquoteTactic Term Term Type   -- ^ First argument is computation and the others are hole and goal type
   | CheckLockedVars Term Type (Arg Term) Type     -- ^ @CheckLockedVars t ty lk lk_ty@ with @t : ty@, @lk : lk_ty@ and @t lk@ well-typed.
   | UsableAtModality Modality Term   -- ^ is the term usable at the given modality?
+<<<<<<< Updated upstream
   deriving (Show, Generic)
+=======
+  | PostponeInference
+  deriving (Show)
+>>>>>>> Stashed changes
 
 instance HasRange Constraint where
   getRange (IsEmpty r t) = r
@@ -1115,6 +1120,7 @@ instance Free Constraint where
       UnquoteTactic t h g   -> freeVars' (t, (h, g))
       CheckMetaInst m       -> mempty
       UsableAtModality mod t -> freeVars' t
+      PostponeInference     -> mempty
 
 instance TermLike Constraint where
   foldTerm f = \case
@@ -1134,6 +1140,7 @@ instance TermLike Constraint where
       HasPTSRule a s         -> foldTerm f (a, Sort <$> s)
       CheckMetaInst m        -> mempty
       UsableAtModality m t   -> foldTerm f t
+      PostponeInference     -> mempty
 
   traverseTermM f c = __IMPOSSIBLE__ -- Not yet implemented
 
@@ -1445,7 +1452,11 @@ getMetaSig :: MetaVariable -> Signature
 getMetaSig m = clSignature $ getMetaInfo m
 
 getMetaRelevance :: MetaVariable -> Relevance
+<<<<<<< Updated upstream
 getMetaRelevance = getRelevance . getModality
+=======
+getMetaRelevance = TrueR . getRelevance . getMetaEnv
+>>>>>>> Stashed changes
 
 getMetaModality :: MetaVariable -> Modality
 getMetaModality = getModality

@@ -102,7 +102,11 @@ import Agda.Utils.Monad
 -- | Prepare parts of a parameter telescope for abstraction in constructors
 --   and projections.
 hideAndRelParams :: (LensHiding a, LensRelevance a) => a -> a
-hideAndRelParams = hideOrKeepInstance . mapRelevance nonStrictToIrr
+hideAndRelParams = hideOrKeepInstance . mapRelevance (TrueR . nonStrictToIrr horribleHack)
+  where
+    horribleHack :: Relevance -> Relevance'
+    horribleHack (TrueR r) = r
+    horribleHack _ = __IMPOSSIBLE__
 
 -- * Operations on 'Context'.
 
