@@ -34,15 +34,19 @@ infixr 4 ..-->
 
 (-->), (.-->), (..-->) :: Applicative m => m Type -> m Type -> m Type
 a --> b = garr id a b
-a .--> b = garr (const $ Irrelevant) a b
-a ..--> b = garr (const $ NonStrict) a b
+a .--> b = garr (const $ TrueR $ Irrelevant) a b
+a ..--> b = garr (const $ TrueR $ NonStrict) a b
 
 garr :: Applicative m => (Relevance -> Relevance) -> m Type -> m Type -> m Type
 garr f a b = do
   a' <- a
   b' <- b
   pure $ El (funSort (getSort a') (getSort b')) $
-    Pi (mapRelevance f $ defaultDom a') (NoAbs "_" b')
+    Pi (mapRelevance (horribleHack . f . TrueR) $ defaultDom a') (NoAbs "_" b')
+  where
+    horribleHack :: Relevance -> Relevance'
+    horribleHack (TrueR r) = r
+    horribleHack _ = __IMPOSSIBLE__
 
 gpi :: (MonadAddContext m, MonadDebug m)
     => ArgInfo -> String -> m Type -> m Type -> m Type

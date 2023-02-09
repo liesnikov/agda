@@ -27,7 +27,8 @@ COMPAT_SRC_DIR = $(SRC_DIR)/compat
 # Andreas, 2020-10-26 further refinement:
 # I often switch GHC version, so indexing v1-style build directories
 # by GHC version x.y.z makes sense.
-BUILD_DIR = $(TOP)/dist-$(VERSION)-ghc-$(GHC_VER)
+BUILD_DIR = $(TOP)/dist-newstyle/build/x86_64-linux/ghc-8.10.4/Agda-2.6.2
+# BUILD_DIR = $(TOP)/dist-$(VERSION)-ghc-$(GHC_VER)
 
 OUT_DIR        = $(TOP)/out
 FULL_OUT_DIR   = $(OUT_DIR)/full

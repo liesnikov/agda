@@ -212,6 +212,7 @@ addConstraintTo bucket unblock c = do
       CheckMetaInst{}  -> True
       CheckLockedVars{} -> True
       UsableAtModality{} -> True
+      PostponeInference{} -> True
 
 -- | Start solving constraints
 nowSolvingConstraints :: MonadTCEnv m => m a -> m a

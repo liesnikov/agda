@@ -110,10 +110,14 @@ instance Pretty (ThingWithFixity Name) where
 instance Pretty a => Pretty (WithHiding a) where
   pretty w = prettyHiding w id $ pretty $ dget w
 
-instance Pretty Relevance where
+instance Pretty Relevance' where
   pretty Relevant   = empty
   pretty Irrelevant = "."
   pretty NonStrict  = ".."
+
+instance Pretty Relevance where
+  pretty (TrueR r) = pretty r
+  pretty (MetaR _) = __IMPOSSIBLE__
 
 instance Pretty Q0Origin where
   pretty = \case

@@ -135,7 +135,7 @@ instance PrettyTCM Constraint where
         CheckLockedVars t ty lk lk_ty -> do
           "Lock" <+> prettyTCM lk <+> "|-" <+> prettyTCMCtx TopCtx t <+> ":" <+> prettyTCM ty
         UsableAtModality mod t -> "Is usable at" <+> prettyTCM mod <+> ":" <+> prettyTCM t
-
+        PostponeInference -> "Postponed inference"
       where
         prettyCmp
           :: (PrettyTCM a, PrettyTCM b, MonadPretty m)

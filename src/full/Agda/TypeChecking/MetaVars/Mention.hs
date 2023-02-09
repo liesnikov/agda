@@ -120,6 +120,7 @@ instance MentionsMeta Constraint where
     CheckMetaInst m     -> True   -- TODO
     CheckLockedVars a b c d -> mm ((a, b), (c, d))
     UsableAtModality mod t -> mm t
+    PostponeInference{} -> True
     where
       mm :: forall t. MentionsMeta t => t -> Bool
       mm = mentionsMetas xs

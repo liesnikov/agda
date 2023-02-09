@@ -130,9 +130,10 @@ quotingKit = do
       quoteHiding NotHidden  = pure visible
 
       quoteRelevance :: Relevance -> ReduceM Term
-      quoteRelevance Relevant   = pure relevant
-      quoteRelevance Irrelevant = pure irrelevant
-      quoteRelevance NonStrict  = pure relevant
+      quoteRelevance (TrueR Relevant) = pure relevant
+      quoteRelevance (TrueR Irrelevant) = pure irrelevant
+      quoteRelevance (TrueR NonStrict)  = pure relevant
+      quoteRelevance _ = __IMPOSSIBLE__
 
       quoteQuantity :: Quantity -> ReduceM Term
       quoteQuantity (Quantity0 _) = pure quantity0
@@ -147,8 +148,12 @@ quotingKit = do
 
       quoteArgInfo :: ArgInfo -> ReduceM Term
       quoteArgInfo (ArgInfo h m _ _ _) =
+<<<<<<< Updated upstream
         arginfo !@ quoteHiding h
                 @@ quoteModality m
+=======
+        arginfo !@ quoteHiding h @@ quoteRelevance (TrueR $ getRelevance m)
+>>>>>>> Stashed changes
 
       quoteLit :: Literal -> ReduceM Term
       quoteLit l@LitNat{}    = litNat    !@! Lit l
@@ -303,9 +308,14 @@ quotingKit = do
                  Function{ funProjection = Just p } -> projIndex p - 1
                  _                                  -> 0
           TelV tel _ = telView' (defType def)
+<<<<<<< Updated upstream
           hiding     = take np $ telToList tel
           par d      = arg !@ quoteArgInfo (domInfo d)
                            @@ pure unsupported
+=======
+          hiding     = map (getHiding &&& (TrueR . getRelevance)) $ take np $ telToList tel
+          par (h, r) = arg !@ (arginfo !@ quoteHiding h @@ quoteRelevance r) @@ pure unsupported
+>>>>>>> Stashed changes
 
       quoteDefn :: Definition -> ReduceM Term
       quoteDefn def =

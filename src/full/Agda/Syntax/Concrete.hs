@@ -651,7 +651,7 @@ observeHiding = \case
   e                               -> WithHiding NotHidden e
 
 -- | Observe the relevance status of an expression
-observeRelevance :: Expr -> (Relevance, Expr)
+observeRelevance :: Expr -> (Relevance', Expr)
 observeRelevance = \case
   Dot _ e       -> (Irrelevant, e)
   DoubleDot _ e -> (NonStrict, e)
@@ -784,7 +784,7 @@ instance LensHiding TypedBinding where
 
 instance LensRelevance TypedBinding where
   getRelevance (TBind _ (x :|_) _) = getRelevance x   -- Slightly dubious
-  getRelevance TLet{}              = unitRelevance
+  getRelevance TLet{}              = unitRelevance'
   mapRelevance f (TBind r xs e) = TBind r (fmap (mapRelevance f) xs) e
   mapRelevance f b@TLet{}       = b
 

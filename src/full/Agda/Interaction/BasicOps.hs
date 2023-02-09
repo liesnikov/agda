@@ -455,6 +455,7 @@ instance Reify Constraint where
       t <- jMetaType . mvJudgement <$> lookupMeta m
       OfType <$> reify (MetaV m []) <*> reify t
     reify (UsableAtModality mod t) = UsableAtMod mod <$> reify t
+    reify (PostponeInference) = reifyWhen False PostponeInference
 
 instance (Pretty a, Pretty b) => Pretty (OutputForm a b) where
   pretty (OutputForm r pids unblock c) =
@@ -620,6 +621,7 @@ getConstraintsMentioning norm m = getConstrs instantiateBlockingFull (mentionsMe
         CheckMetaInst{}            -> Nothing
         CheckLockedVars t _ _ _    -> isMeta t
         UsableAtModality _ t       -> isMeta t
+        PostponeInference          -> Nothing
 
     isMeta (MetaV m' es_m)
       | m == m' = Just es_m

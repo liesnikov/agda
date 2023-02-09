@@ -232,7 +232,7 @@ instance Instantiate Constraint where
   instantiate' (UnquoteTactic t h g) = UnquoteTactic <$> instantiate' t <*> instantiate' h <*> instantiate' g
   instantiate' c@CheckMetaInst{}    = return c
   instantiate' (UsableAtModality mod t) = UsableAtModality mod <$> instantiate' t
-
+  instantiate' c@PostponeInference{} = return c
 instance Instantiate CompareAs where
   instantiate' (AsTermsOf a) = AsTermsOf <$> instantiate' a
   instantiate' AsSizes       = return AsSizes
@@ -830,6 +830,7 @@ instance Reduce Constraint where
     CheckLockedVars <$> reduce' a <*> reduce' b <*> reduce' c <*> reduce' d
   reduce' c@CheckMetaInst{}     = return c
   reduce' (UsableAtModality mod t) = UsableAtModality mod <$> reduce' t
+  reduce' c@PostponeInference{} = return c
 
 instance Reduce CompareAs where
   reduce' (AsTermsOf a) = AsTermsOf <$> reduce' a
@@ -994,6 +995,7 @@ instance Simplify Constraint where
     CheckLockedVars <$> simplify' a <*> simplify' b <*> simplify' c <*> simplify' d
   simplify' c@CheckMetaInst{}     = return c
   simplify' (UsableAtModality mod t) = UsableAtModality mod <$> simplify' t
+  simplify' c@PostponeInference{} = return c
 
 instance Simplify CompareAs where
   simplify' (AsTermsOf a) = AsTermsOf <$> simplify' a
@@ -1173,6 +1175,7 @@ instance Normalise Constraint where
     CheckLockedVars <$> normalise' a <*> normalise' b <*> normalise' c <*> normalise' d
   normalise' c@CheckMetaInst{}     = return c
   normalise' (UsableAtModality mod t) = UsableAtModality mod <$> normalise' t
+  normalise' c@PostponeInference{}     = return c
 
 instance Normalise CompareAs where
   normalise' (AsTermsOf a) = AsTermsOf <$> normalise' a
@@ -1391,6 +1394,7 @@ instance InstantiateFull Constraint where
       CheckLockedVars <$> instantiateFull' a <*> instantiateFull' b <*> instantiateFull' c <*> instantiateFull' d
     c@CheckMetaInst{}   -> return c
     UsableAtModality mod t -> UsableAtModality mod <$> instantiateFull' t
+    c@PostponeInference{} -> return c
 
 instance InstantiateFull CompareAs where
   instantiateFull' (AsTermsOf a) = AsTermsOf <$> instantiateFull' a

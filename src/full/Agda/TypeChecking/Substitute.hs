@@ -993,6 +993,7 @@ instance Subst Constraint where
     UnquoteTactic t h g      -> UnquoteTactic (rf t) (rf h) (rf g)
     CheckMetaInst m          -> CheckMetaInst m
     UsableAtModality mod m   -> UsableAtModality mod (rf m)
+    c@PostponeInference{}    -> c
     where
       rf :: forall a. TermSubst a => a -> a
       rf x = applySubst rho x
