@@ -83,6 +83,8 @@ data Phase
     -- ^ Subphase for 'Typing': free variable computation.
   | OccursCheck
     -- ^ Subphase for 'Typing': occurs check for solving metas.
+  | Pruning
+    -- ^ Subphase for 'Typing' and 'OccursCheck': pruning metas
   | CheckLHS
     -- ^ Subphase for 'Typing': checking the LHS
   | CheckRHS
