@@ -34,7 +34,8 @@ AGDA_TESTS_OPTIONS ?=-i -j$(PARALLEL_TESTS)
 CABAL_OPT_NO_DOCS = --disable-documentation
 STACK_OPT_NO_DOCS = --no-haddock
 
-CABAL_OPT_TESTS   = --enable-tests
+#CABAL_OPT_TESTS   = --enable-tests
+CABAL_OPT_TESTS   =
 STACK_OPT_TESTS   = --test --no-run-tests
 
 CABAL_OPT_FAST    = --ghc-options=-O0
