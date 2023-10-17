@@ -732,13 +732,14 @@ instance Occurs a => Occurs (Dom a) where
 --   we cannot prune, because the offending variables could be removed by
 --   reduction for a suitable instantiation of the meta variable.
 prune
-  :: (PureTCM m, MonadMetaSolver m)
+  :: (PureTCM m, MonadMetaSolver m,
+      Bench.MonadBench m, Bench.BenchPhase m ~ Bench.Phase)
   => MetaId         -- ^ Meta to prune.
   -> Args           -- ^ Arguments to meta variable.
   -> (Nat -> Bool)  -- ^ Test for allowed variable (de Bruijn index).
   -> m PruneResult
 prune m' vs xs =
-  Bench.billToPure [ Bench.Typing, Bench.OccursCheck, Bench.Pruning ] $ do
+  Bench.billTo [ Bench.Typing, Bench.OccursCheck, Bench.Pruning ] $ do
   caseEitherM (runExceptT $ mapM ((hasBadRigid xs) . unArg) vs)
     (const $ return PrunedNothing) $ \ kills -> do
     reportSDoc "tc.meta.kill" 10 $ vcat
