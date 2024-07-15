@@ -1199,7 +1199,7 @@ data WhyCheckModality
   | GeneratedClause
   -- ^ Because we double-check the --cubical-compatible clauses. This is
   -- an internal error!
-  deriving (Show, Generic)
+  deriving (Show, Generic, Eq, Ord)
 
 data Constraint
   = ValueCmp Comparison CompareAs Term Term -- ^ potentially cachable
@@ -1302,7 +1302,7 @@ instance TermLike Constraint where
 instance AllMetas Constraint
 
 data Comparison = CmpEq | CmpLeq
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic)
 
 instance Pretty Comparison where
   pretty CmpEq  = "="
@@ -2191,7 +2191,7 @@ data Polarity
   | Contravariant  -- ^ antitone
   | Invariant      -- ^ no information (mixed variance)
   | Nonvariant     -- ^ constant
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Ord, Generic)
 
 instance Pretty Polarity where
   pretty = text . \case
@@ -2204,7 +2204,7 @@ instance Pretty Polarity where
 data IsForced
   = Forced
   | NotForced
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Ord, Generic)
 
 -- | The backends are responsible for parsing their own pragmas.
 data CompilerPragma = CompilerPragma Range String
