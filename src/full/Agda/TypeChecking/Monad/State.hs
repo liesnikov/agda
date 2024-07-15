@@ -160,6 +160,13 @@ lensAccumStatisticsP f s = f (stAccumStatistics s) <&> \ a ->
 lensAccumStatistics :: Lens' TCState Statistics
 lensAccumStatistics =  lensPersistentState . lensAccumStatisticsP
 
+lensConstraintsCacheP :: Lens' PersistentTCState ConstraintsCache
+lensConstraintsCacheP f s = f (stPersistConstraintsCache s) <&>
+  \ x -> s {stPersistConstraintsCache = x}
+
+lensConstraintsCache :: Lens' TCState ConstraintsCache
+lensConstraintsCache = lensPersistentState . lensConstraintsCacheP
+
 ---------------------------------------------------------------------------
 -- * Scope
 ---------------------------------------------------------------------------

@@ -21,6 +21,7 @@ import qualified Text.PrettyPrint.Boxes as Boxes
 import Agda.Syntax.TopLevelModuleName (TopLevelModuleName)
 
 import Agda.TypeChecking.Monad.Base
+import Agda.TypeChecking.Monad.State (lensConstraintsCache)
 import Agda.TypeChecking.Monad.Debug
 import Agda.TypeChecking.Substitute ()
 
@@ -110,10 +111,10 @@ printStatistics mmname stats = do
     alwaysReportSLn "" 1 $ Boxes.render table
 
 getConstraintsCache :: ReadTCState m => m ConstraintsCache
-getConstraintsCache = useR stConstraintsCache
+getConstraintsCache = useR lensConstraintsCache
 
 modifyConstraintsCache :: (ConstraintsCache -> ConstraintsCache) -> TCM ()
-modifyConstraintsCache f = stConstraintsCache `modifyTCLens` f
+modifyConstraintsCache f = lensConstraintsCache `modifyTCLens` f
 
 tickC :: MonadStatistics m =>  Constraint -> m ()
 tickC c = tickCN c 1
@@ -122,7 +123,7 @@ tickCN :: MonadStatistics m =>  Constraint -> Integer -> m ()
 tickCN c n = modifyCacheCounter c (n +)
 
 printCacheCounter :: (MonadDebug m, MonadTCEnv m, HasOptions m)
-                  => Maybe TopLevelModuleName -> Statistics -> m ()
+                  => Maybe TopLevelModuleName -> ConstraintsCache -> m ()
 printCacheCounter mmname stats = do
   unlessNull (Map.toList stats) $ \ stats -> do
     let -- First column (left aligned) is accounts.
