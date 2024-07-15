@@ -58,6 +58,7 @@ import Agda.Utils.Monad
 import Agda.Utils.Null
 import qualified Agda.Syntax.Common.Pretty as P
 import Agda.Utils.Size
+import qualified Agda.Utils.ProfileOptions as Profile
 
 import Agda.Utils.Impossible
 
@@ -209,6 +210,7 @@ checkDataDef i name uc (A.DataDefParams gpars ps) cs =
 --   E.g. @IUniv@, @SizeUniv@ etc. do not accept new constructions.
 checkDataSort :: QName -> Sort -> TCM ()
 checkDataSort name s = setCurrentRange name $ do
+  whenProfile Profile.Caching $ tickC (CheckDataSort name s)
   ifBlocked s postpone {-else-} $ \ _ (s :: Sort) -> do
     let
       yes :: TCM ()

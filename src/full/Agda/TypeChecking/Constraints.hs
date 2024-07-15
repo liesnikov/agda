@@ -307,7 +307,8 @@ solveConstraint_ (UnBlock m)                =   -- alwaysUnblock since these hav
       OpenMeta{} -> __IMPOSSIBLE__
 solveConstraint_ (FindInstance m cands) = findInstance m cands
 solveConstraint_ (ResolveInstanceHead q) = resolveInstanceHead q
-solveConstraint_ (CheckFunDef i q cs _err) = withoutCache $
+solveConstraint_ (CheckFunDef i q cs _err) = withoutCache $ do
+  whenProfile Profile.Caching $ tickC (CheckFunDef i q cs _err)
   -- re #3498: checking a fundef would normally be cached, but here it's
   -- happening out of order so it would only corrupt the caching log.
   checkFunDef i q cs
