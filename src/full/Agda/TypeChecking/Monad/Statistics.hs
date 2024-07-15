@@ -3,7 +3,9 @@
 -- | Collect statistics.
 
 module Agda.TypeChecking.Monad.Statistics
-    ( MonadStatistics(..), tick, tickN, tickMax, getStatistics, modifyStatistics, printStatistics
+    ( MonadStatistics(..)
+    , tick, tickN, tickMax, getStatistics, modifyStatistics, printStatistics
+    , tickC, tickCN, getConstraintsCache, modifyConstraintsCache, printCacheCounter
     ) where
 
 import Control.DeepSeq
@@ -20,6 +22,7 @@ import Agda.Syntax.TopLevelModuleName (TopLevelModuleName)
 
 import Agda.TypeChecking.Monad.Base
 import Agda.TypeChecking.Monad.Debug
+import Agda.TypeChecking.Substitute ()
 
 import Agda.Utils.Maybe
 import Agda.Utils.Null
@@ -33,6 +36,13 @@ class ReadTCState m => MonadStatistics m where
     :: (MonadStatistics n, MonadTrans t, t n ~ m)
     =>  String -> (Integer -> Integer) -> m ()
   modifyCounter x = lift . modifyCounter x
+
+  modifyCacheCounter :: Constraint -> (Integer -> Integer) -> m ()
+
+  default modifyCacheCounter
+    :: (MonadStatistics n, MonadTrans t, t n ~ m)
+    => Constraint -> (Integer -> Integer) -> m ()
+  modifyCacheCounter x = lift . modifyCacheCounter x
 
 instance MonadStatistics m => MonadStatistics (ExceptT e m)
 instance MonadStatistics m => MonadStatistics (MaybeT m)
@@ -54,6 +64,12 @@ instance MonadStatistics TCM where
       -- map (nor are they less hacky). It's not enough to be strict in the
       -- values stored in the map, we also need to be strict in the *structure*
       -- of the map. A less hacky solution is to deepseq the map.
+      force m = rnf m `seq` m
+      update  = Map.insertWith (\ new old -> f old) x dummy
+      dummy   = f 0
+
+  modifyCacheCounter x f = modifyConstraintsCache $ force . update
+   where
       force m = rnf m `seq` m
       update  = Map.insertWith (\ new old -> f old) x dummy
       dummy   = f 0
@@ -91,4 +107,29 @@ printStatistics mmname stats = do
         table = Boxes.hsep 1 Boxes.left [col1, col2]
     alwaysReportSLn "" 1 $ caseMaybe mmname "Accumulated statistics" $ \ mname ->
       "Statistics for " ++ prettyShow mname
+    alwaysReportSLn "" 1 $ Boxes.render table
+
+getConstraintsCache :: ReadTCState m => m ConstraintsCache
+getConstraintsCache = useR stConstraintsCache
+
+modifyConstraintsCache :: (ConstraintsCache -> ConstraintsCache) -> TCM ()
+modifyConstraintsCache f = stConstraintsCache `modifyTCLens` f
+
+tickC :: MonadStatistics m =>  Constraint -> m ()
+tickC c = tickCN c 1
+
+tickCN :: MonadStatistics m =>  Constraint -> Integer -> m ()
+tickCN c n = modifyCacheCounter c (n +)
+
+printCacheCounter :: (MonadDebug m, MonadTCEnv m, HasOptions m)
+                  => Maybe TopLevelModuleName -> Statistics -> m ()
+printCacheCounter mmname stats = do
+  unlessNull (Map.toList stats) $ \ stats -> do
+    let -- First column (left aligned) is accounts.
+        col1 = Boxes.vcat Boxes.left  $ map (Boxes.text . show) $ map fst stats
+        -- Second column (right aligned) is numbers.
+        col2 = Boxes.vcat Boxes.right $ map (Boxes.text . showThousandSep . snd) stats
+        table = Boxes.hsep 1 Boxes.left [col1, col2]
+    alwaysReportSLn "" 1 $ caseMaybe mmname "Accumulated cache statistics" $ \ mname ->
+      "Cache statistics for " ++ prettyShow mname
     alwaysReportSLn "" 1 $ Boxes.render table
