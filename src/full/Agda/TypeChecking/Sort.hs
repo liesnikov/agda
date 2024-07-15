@@ -45,6 +45,7 @@ import Agda.TypeChecking.Monad.Debug
 import Agda.TypeChecking.Monad.MetaVars (metaType)
 import Agda.TypeChecking.Monad.Pure
 import Agda.TypeChecking.Monad.Signature (HasConstInfo(..), applyDef)
+import Agda.TypeChecking.Monad.Statistics (tickC)
 import Agda.TypeChecking.Pretty
 import Agda.TypeChecking.Records (getDefType)
 import Agda.TypeChecking.ProjectionLike
@@ -53,6 +54,7 @@ import Agda.TypeChecking.Substitute
 import Agda.TypeChecking.Telescope
 
 import Agda.Utils.Monad
+import qualified Agda.Utils.ProfileOptions as Profile
 
 import Agda.Utils.Impossible
 
@@ -83,7 +85,7 @@ sortFitsIn a b = do
     (equalSort b' b)
 
 hasBiggerSort :: Sort -> TCM ()
-hasBiggerSort = void . inferUnivSort
+hasBiggerSort = void . inferUnivSort -- not caching constraints because it's unused
 
 {-# SPECIALIZE inferPiSort :: Dom Type -> Abs Sort -> TCM Sort #-}
 -- | Infer the sort of a Pi type.
@@ -135,6 +137,7 @@ inferFunSort a s = do
 --
 hasPTSRule :: Dom Type -> Abs Sort -> TCM ()
 hasPTSRule a s = do
+  whenProfile Profile.Caching $ tickC (HasPTSRule a s)
   reportSDoc "tc.conv.sort" 35 $ vcat
     [ "hasPTSRule"
     , "a =" <+> prettyTCM a

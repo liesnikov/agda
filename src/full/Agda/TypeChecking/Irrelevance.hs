@@ -89,6 +89,7 @@ import Agda.TypeChecking.Telescope
 import Agda.Utils.Lens
 import Agda.Utils.Maybe
 import Agda.Utils.Monad
+import qualified Agda.Utils.ProfileOptions as Profile
 
 -- | Check whether something can be used in a position of the given relevance.
 --
@@ -303,6 +304,7 @@ usableAtModality' :: MonadConstraint TCM
   => Maybe Sort -> WhyCheckModality -> Modality -> Term -> TCM ()
 usableAtModality' ms why mod t =
   catchConstraint (UsableAtModality why ms mod t) $ do
+    whenProfile Profile.Caching $ tickC (UsableAtModality why ms mod t)
     whenM (maybe (pure True) isFibrant ms) $ do
       res <- runExceptT $ usableMod mod t
       case res of

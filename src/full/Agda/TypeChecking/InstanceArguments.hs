@@ -288,6 +288,7 @@ findInstance m Nothing =
   ifM canDropRecursiveInstance (addConstraint neverUnblock (FindInstance m Nothing)) $
   -- Getting initial candidates can fail, in which case we should postpone (#7286)
   catchConstraint (FindInstance m Nothing) $ do
+  whenProfile Profile.Caching $ tickC (FindInstance m Nothing)
   -- Andreas, 2015-02-07: New metas should be created with range of the
   -- current instance meta, thus, we set the range.
   mv <- lookupLocalMeta m
@@ -308,7 +309,8 @@ findInstance m Nothing =
       Right cs -> findInstance m (Just cs)
 
 findInstance m (Just cands) =                          -- Note: if no blocking meta variable this will not unblock until the end of the mutual block
-  whenJustM (findInstance' m cands) $ (\ (cands, b) -> addConstraint b $ FindInstance m $ Just cands)
+  (whenProfile Profile.Caching $ tickC (FindInstance m (Just cands))) >>
+  (whenJustM (findInstance' m cands) $ (\ (cands, b) -> addConstraint b $ FindInstance m $ Just cands))
 
 -- | Entry point for `tcGetInstances` primitive
 getInstanceCandidates :: MetaId -> TCM (Either Blocker [Candidate])
@@ -1053,6 +1055,7 @@ addTypedInstance' w orig x t = do
 
 resolveInstanceHead :: QName -> TCM ()
 resolveInstanceHead q = do
+  whenProfile Profile.Caching $ tickC (ResolveInstanceHead q)
   clearUnknownInstance q
   -- Andreas, 2022-12-04, issue #6380:
   -- Do not warn about unusable instances here.

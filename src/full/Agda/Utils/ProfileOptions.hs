@@ -40,6 +40,7 @@ data ProfileOption = Internal     -- ^ Measure time taken by various parts of th
                    | Interactive  -- ^ Measure time of interactive commands
                    | Conversion   -- ^ Collect statistics about conversion checking
                    | Instances    -- ^ Collect statistics about instance search
+                   | Caching      -- ^ Collect statistics about constraint solving
   deriving (Show, Eq, Ord, Enum, Bounded, Generic)
 
 instance NFData ProfileOption
