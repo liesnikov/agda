@@ -628,11 +628,6 @@ stTopLevelModuleNames f s =
   \ x -> s {stPersistentState =
               (stPersistentState s) {stPersistentTopLevelModuleNames = x}}
 
-stConstraintsCache :: Lens' TCState ConstraintsCache
-stConstraintsCache f s = f (stPersistConstraintsCache (stPersistentState s)) <&>
-  \ x -> s {stPersistentState =
-              (stPersistentState s) {stPersistConstraintsCache = x}}
-
 stImportedMetaStore :: Lens' TCState RemoteMetaStore
 stImportedMetaStore f s =
   f (stPreImportedMetaStore (stPreScopeState s)) <&>
