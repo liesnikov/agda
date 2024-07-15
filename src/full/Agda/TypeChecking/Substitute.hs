@@ -1543,7 +1543,6 @@ instance (Subst a, Ord a) => Ord (Elim' a) where
   Proj{}   `compare` _        = LT
   _        `compare` Proj{}   = GT
 
-
 ---------------------------------------------------------------------------
 -- * Sort stuff
 ---------------------------------------------------------------------------
@@ -1779,3 +1778,107 @@ levelTm l =
   case l of
     Max 0 [Plus 0 l] -> l
     _                -> Level l
+
+-----------------------------------------------------------------------
+-- * Constraints
+-----------------------------------------------------------------------
+
+deriving instance Eq CompareAs
+deriving instance Ord CompareAs
+
+instance Eq Constraint where
+  ValueCmp c1 c2 t1 t2 == ValueCmp c3 c4 t3 t4 = (c1, c2, t1, t2) == (c3, c4, t3, t4)
+  ValueCmpOnFace c1 t1 a1 t2 t3 == ValueCmpOnFace c2 t4 a2 t5 t6 = (c1, t1, a1, t2, t3) == (c2, t4, a2, t5, t6)
+  ElimCmp p1 f1 a1 t1 es1 es2 == ElimCmp p2 f2 a2 t2 es3 es4 = (p1, f1, a1, t1, es1, es2) == (p2, f2, a2, t2, es3, es4)
+  SortCmp c1 s1 s2 == SortCmp c2 s3 s4 = (c1, s1, s2) == (c2, s3, s4)
+  LevelCmp c1 l1 l2 == LevelCmp c2 l3 l4 = (c1, l1, l2) == (c2, l3, l4)
+  HasBiggerSort s1 == HasBiggerSort s2 = s1 == s2
+  HasPTSRule a1 s1 == HasPTSRule a2 s2 = (a1, s1) == (a2, s2)
+  CheckDataSort q1 s1 == CheckDataSort q2 s2 = (q1, s1) == (q2, s2)
+  CheckMetaInst m1 == CheckMetaInst m2 = m1 == m2
+  CheckType t1 == CheckType t2 = t1 == t2
+  UnBlock m1 == UnBlock m2 = m1 == m2
+  IsEmpty r1 t1 == IsEmpty r2 t2 = (r1, t1) == (r2, t2)
+  CheckSizeLtSat t1 == CheckSizeLtSat t2 = t1 == t2
+  FindInstance m1 c1 == FindInstance m2 c2 = (m1, c1) == (m2, c2)
+  ResolveInstanceHead q1 == ResolveInstanceHead q2 = q1 == q2
+  CheckFunDef i1 q1 cs1 _ == CheckFunDef i2 q2 cs2 _ = (i1, q1, cs1) == (i2, q2, cs2)
+  UnquoteTactic t1 t2 t3 == UnquoteTactic t4 t5 t6 = (t1, t2, t3) == (t4, t5, t6)
+  CheckLockedVars t1 ty1 lk1 lk_ty1 == CheckLockedVars t2 ty2 lk2 lk_ty2 = (t1, ty1, lk1, lk_ty1) == (t2, ty2, lk2, lk_ty2)
+  UsableAtModality w1 s1 m1 t1 == UsableAtModality w2 s2 m2 t2 = (w1, s1, m1, t1) == (w2, s2, m2, t2)
+  _ == _ = False
+
+instance Ord Constraint where
+  ValueCmp c1 ca1 t1 t2 `compare` ValueCmp c2 ca2 t3 t4 = compare (c1, ca1, t1, t2) (c2, ca2, t3, t4)
+  ValueCmp {}           `compare` _                     = LT
+  _                     `compare` ValueCmp {}           = GT
+
+  ValueCmpOnFace c1 t1 a1 t2 t3 `compare` ValueCmpOnFace c2 t4 a2 t5 t6 = compare (c1, t1, a1, t2, t3) (c2, t4, a2, t5, t6)
+  ValueCmpOnFace {}             `compare` _                             = LT
+  _                             `compare` ValueCmpOnFace {}             = GT
+
+  ElimCmp p1 f1 a1 t1 es1 es2 `compare` ElimCmp p2 f2 a2 t2 es3 es4 = compare (p1, f1, a1, t1, es1, es2) (p2, f2, a2, t2, es3, es4)
+  ElimCmp {}                  `compare` _                           = LT
+  _                           `compare` ElimCmp {}                  = GT
+
+  SortCmp c1 s1 s2 `compare` SortCmp c2 s3 s4 = compare (c1, s1, s2) (c2, s3, s4)
+  SortCmp {}       `compare` _                = LT
+  _                `compare` SortCmp {}       = GT
+
+  LevelCmp c1 l1 l2 `compare` LevelCmp c2 l3 l4 = compare (c1, l1, l2) (c2, l3, l4)
+  LevelCmp {}       `compare` _                 = LT
+  _                 `compare` LevelCmp {}       = GT
+
+  HasBiggerSort s1 `compare` HasBiggerSort s2 = compare s1 s2
+  HasBiggerSort {} `compare` _                = LT
+  _                `compare` HasBiggerSort {} = GT
+
+  HasPTSRule a1 s1 `compare` HasPTSRule a2 s2 = compare (a1, s1) (a2, s2)
+  HasPTSRule {}    `compare` _                = LT
+  _                `compare` HasPTSRule {}    = GT
+
+  CheckDataSort q1 s1 `compare` CheckDataSort q2 s2 = compare (q1, s1) (q2, s2)
+  CheckDataSort {}    `compare` _                   = LT
+  _                   `compare` CheckDataSort {}    = GT
+
+  CheckMetaInst m1 `compare` CheckMetaInst m2 = compare m1 m2
+  CheckMetaInst {} `compare` _                = LT
+  _                `compare` CheckMetaInst {} = GT
+
+  CheckType t1 `compare` CheckType t2 = compare t1 t2
+  CheckType {} `compare` _            = LT
+  _            `compare` CheckType {} = GT
+
+  UnBlock m1 `compare` UnBlock m2 = compare m1 m2
+  UnBlock {} `compare` _          = LT
+  _          `compare` UnBlock {} = GT
+
+  IsEmpty r1 t1 `compare` IsEmpty r2 t2 = compare (r1, t1) (r2, t2)
+  IsEmpty {}    `compare` _             = LT
+  _             `compare` IsEmpty {}    = GT
+
+  CheckSizeLtSat t1 `compare` CheckSizeLtSat t2 = compare t1 t2
+  CheckSizeLtSat {} `compare` _                 = LT
+  _                 `compare` CheckSizeLtSat {} = GT
+
+  FindInstance m1 c1 `compare` FindInstance m2 c2 = compare (m1, c1) (m2, c2)
+  FindInstance {}    `compare` _                  = LT
+  _                  `compare` FindInstance {}    = GT
+
+  ResolveInstanceHead q1 `compare` ResolveInstanceHead q2    = compare q1 q2
+  ResolveInstanceHead {} `compare` _                         = LT
+  _                      `compare` ResolveInstanceHead {}    = GT
+
+  CheckFunDef _ q1 _ _  `compare` CheckFunDef _ q2 _ _ = compare (q1) (q2)
+  CheckFunDef {}        `compare` _                    = LT
+  _                     `compare` CheckFunDef {}       = GT
+
+  UnquoteTactic t1 t2 t3 `compare` UnquoteTactic t4 t5 t6 = compare (t1, t2, t3) (t4, t5, t6)
+  UnquoteTactic {}       `compare` _                      = LT
+  _                      `compare` UnquoteTactic {}       = GT
+
+  CheckLockedVars t1 ty1 lk1 lk_ty1 `compare` CheckLockedVars t2 ty2 lk2 lk_ty2 = compare (t1, ty1, lk1, lk_ty1) (t2, ty2, lk2, lk_ty2)
+  CheckLockedVars {}                `compare` _                                 = LT
+  _                                 `compare` CheckLockedVars {}                = GT
+
+  UsableAtModality w1 s1 m1 t1 `compare` UsableAtModality w2 s2 m2 t2 = compare (w1, s1, m1, t1) (w2, s2, m2, t2)
