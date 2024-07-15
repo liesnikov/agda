@@ -47,13 +47,18 @@ import Agda.Utils.Impossible
 
 instance MonadConstraint TCM where
   addConstraint             = addConstraintTCM
-  addAwakeConstraint        = addAwakeConstraint'
+  addAwakeConstraint        = addAwakeConstraintTCM
   solveConstraint           = solveConstraintTCM
   solveSomeAwakeConstraints = solveSomeAwakeConstraintsTCM
   wakeConstraints           = wakeConstraintsTCM
   stealConstraints          = stealConstraintsTCM
   modifyAwakeConstraints    = modifyTC . mapAwakeConstraints
   modifySleepingConstraints = modifyTC . mapSleepingConstraints
+
+addAwakeConstraintTCM :: Blocker -> Constraint -> TCM ()
+addAwakeConstraintTCM b c = do
+  tickC c
+  addAwakeConstraint' b c
 
 addConstraintTCM :: Blocker -> Constraint -> TCM ()
 addConstraintTCM unblock c = do
@@ -71,6 +76,7 @@ addConstraintTCM unblock c = do
           __IMPOSSIBLE__
       -- Need to reduce to reveal possibly blocking metas
       c <- reduce =<< instantiateFull c
+      tickC c
       caseMaybeM (simpl c) {-no-} (addConstraint' unblock c) $ {-yes-} \ cs -> do
           reportSDoc "tc.constr.add" 20 $ "  simplified:" <+> prettyList (map prettyTCM cs)
           mapM_ solveConstraint_ cs

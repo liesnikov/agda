@@ -353,6 +353,7 @@ data PersistentTCState = PersistentTCSt
     --   Needs to be a strict field to avoid space leaks!
   , stAccumStatistics   :: !Statistics
     -- ^ Should be strict field.
+  , stPersistConstraintsCache :: !ConstraintsCache
   , stPersistLoadedFileCache :: !(Strict.Maybe LoadedFileCache)
     -- ^ Cached typechecking state from the last loaded file.
     --   Should be @Nothing@ when checking imports.
@@ -404,6 +405,7 @@ initPersistentState = PersistentTCSt
   , stInteractionOutputCallback = defaultInteractionOutputCallback
   , stBenchmark                 = empty
   , stAccumStatistics           = Map.empty
+  , stPersistConstraintsCache   = Map.empty
   , stPersistLoadedFileCache    = empty
   , stPersistBackends           = []
   }
@@ -624,6 +626,11 @@ stTopLevelModuleNames f s =
   f (stPersistentTopLevelModuleNames (stPersistentState s)) <&>
   \ x -> s {stPersistentState =
               (stPersistentState s) {stPersistentTopLevelModuleNames = x}}
+
+stConstraintsCache :: Lens' TCState ConstraintsCache
+stConstraintsCache f s = f (stPersistConstraintsCache (stPersistentState s)) <&>
+  \ x -> s {stPersistentState =
+              (stPersistentState s) {stPersistConstraintsCache = x}}
 
 stImportedMetaStore :: Lens' TCState RemoteMetaStore
 stImportedMetaStore f s =
@@ -1195,15 +1202,15 @@ data WhyCheckModality
   deriving (Show, Generic)
 
 data Constraint
-  = ValueCmp Comparison CompareAs Term Term
-  | ValueCmpOnFace Comparison Term Type Term Term
-  | ElimCmp [Polarity] [IsForced] Type Term [Elim] [Elim]
-  | SortCmp Comparison Sort Sort
-  | LevelCmp Comparison Level Level
+  = ValueCmp Comparison CompareAs Term Term -- ^ potentially cachable
+  | ValueCmpOnFace Comparison Term Type Term Term -- ^ potentially cachable
+  | ElimCmp [Polarity] [IsForced] Type Term [Elim] [Elim] -- ^ potentially cachable
+  | SortCmp Comparison Sort Sort -- ^ potentially cachable
+  | LevelCmp Comparison Level Level -- ^ potentially cachable
 --  | ShortCut MetaId Term Type
 --    -- ^ A delayed instantiation.  Replaces @ValueCmp@ in 'postponeTypeCheckingProblem'.
   | HasBiggerSort Sort
-  | HasPTSRule (Dom Type) (Abs Sort)
+  | HasPTSRule (Dom Type) (Abs Sort) -- ^ potentially cachable
   | CheckDataSort QName Sort
     -- ^ Check that the sort 'Sort' of data type 'QName' admits data/record types.
     -- E.g., sorts @IUniv@, @SizeUniv@ etc. do not admit such constructions.
@@ -1214,20 +1221,20 @@ data Constraint
     -- ^ Meta created for a term blocked by a postponed type checking problem or unsolved
     --   constraints. The 'MetaInstantiation' for the meta (when unsolved) is either 'BlockedConst'
     --   or 'PostponedTypeCheckingProblem'.
-  | IsEmpty Range Type
+  | IsEmpty Range Type -- ^ potentially cachable
     -- ^ The range is the one of the absurd pattern.
   | CheckSizeLtSat Term
     -- ^ Check that the 'Term' is either not a SIZELT or a non-empty SIZELT.
-  | FindInstance MetaId (Maybe [Candidate])
+  | FindInstance MetaId (Maybe [Candidate]) -- ^ potentially cachable
     -- ^ the first argument is the instance argument and the second one is the list of candidates
     --   (or Nothing if we haven’t determined the list of candidates yet)
-  | ResolveInstanceHead QName
+  | ResolveInstanceHead QName -- ^ potentially cachable
     -- ^ Resolve the head symbol of the type that the given instance targets
   | CheckFunDef A.DefInfo QName [A.Clause] TCErr
     -- ^ Last argument is the error causing us to postpone.
-  | UnquoteTactic Term Term Type   -- ^ First argument is computation and the others are hole and goal type
+  | UnquoteTactic Term Term Type   -- ^ First argument is computation and the others are hole and goal type -- ^ potentially cachable?
   | CheckLockedVars Term Type (Arg Term) Type     -- ^ @CheckLockedVars t ty lk lk_ty@ with @t : ty@, @lk : lk_ty@ and @t lk@ well-typed.
-  | UsableAtModality WhyCheckModality (Maybe Sort) Modality Term
+  | UsableAtModality WhyCheckModality (Maybe Sort) Modality Term -- ^ potentially cachable
     -- ^ Is the term usable at the given modality?
     -- This check should run if the @Sort@ is @Nothing@ or @isFibrant@.
   deriving (Show, Generic)
@@ -1360,6 +1367,9 @@ instance Pretty CompareAs where
   pretty (AsTermsOf a) = ":" <+> pretty a
   pretty AsSizes       = ":" <+> text "Size"
   pretty AsTypes       = empty
+
+
+type ConstraintsCache = Map Constraint Integer
 
 ---------------------------------------------------------------------------
 -- * Open things
