@@ -280,6 +280,6 @@ sortOf t = do
 {-# INLINE sortOfType #-}
 -- | Reconstruct the minimal sort of a type (ignoring the sort annotation).
 sortOfType
-  :: forall m. (PureTCM m, MonadBlock m,MonadConstraint m)
+  :: forall m. (MonadStatistics m, PureTCM m, MonadBlock m, MonadConstraint m)
   => Type -> m Sort
 sortOfType = sortOf . unEl
