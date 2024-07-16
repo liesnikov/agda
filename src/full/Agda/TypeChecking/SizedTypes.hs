@@ -203,6 +203,7 @@ isBoundedSizeType t =
 --   In @boundedSizeMetaHook v tel a@, @tel@ includes the current context.
 boundedSizeMetaHook
   :: ( MonadConstraint m
+     , MonadStatistics m
      , MonadTCEnv m
      , ReadTCState m
      , MonadAddContext m
@@ -220,6 +221,7 @@ boundedSizeMetaHook v@(MetaV x _) tel0 a = do
       addContext tel $ do
         v <- sizeSuc 1 $ raise (size tel) v `apply` teleArgs tel
         -- compareSizes CmpLeq v u
+        whenProfile Profile.Caching $ tickCM (ValueCmp CmpLeq AsSizes v u)
         addConstraint (unblockOnMeta x) $ ValueCmp CmpLeq AsSizes v u
     _ -> return ()
 boundedSizeMetaHook _ _ _ = __IMPOSSIBLE__
@@ -302,6 +304,7 @@ sizeMaxView v = do
 -- | Compare two sizes.
 compareSizes :: (MonadConversion m) => Comparison -> Term -> Term -> m ()
 compareSizes cmp u v = verboseBracket "tc.conv.size" 10 "compareSizes" $ do
+  whenProfile Profile.Caching $ tickCM (ValueCmp cmp AsSizes u v)
   reportSDoc "tc.conv.size" 10 $ vcat
     [ "Comparing sizes"
     , nest 2 $ sep [ prettyTCM u <+> prettyTCM cmp

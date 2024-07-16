@@ -45,7 +45,7 @@ import Agda.TypeChecking.Monad.Debug
 import Agda.TypeChecking.Monad.MetaVars (metaType)
 import Agda.TypeChecking.Monad.Pure
 import Agda.TypeChecking.Monad.Signature (HasConstInfo(..), applyDef)
-import Agda.TypeChecking.Monad.Statistics (tickCM)
+import Agda.TypeChecking.Monad.Statistics
 import Agda.TypeChecking.Pretty
 import Agda.TypeChecking.Records (getDefType)
 import Agda.TypeChecking.ProjectionLike
@@ -115,7 +115,7 @@ inferPiSort a s = do
 {-# SPECIALIZE inferFunSort :: Dom Type -> Sort -> TCM Sort #-}
 -- | As @inferPiSort@, but for a nondependent function type.
 --
-inferFunSort :: (PureTCM m, MonadConstraint m)
+inferFunSort :: (MonadStatistics m, PureTCM m, MonadConstraint m)
   => Dom Type  -- ^ Domain of the function type.
   -> Sort      -- ^ Sort of the codomain of the function type.
   -> m Sort    -- ^ Sort of the function type.
@@ -128,6 +128,7 @@ inferFunSort a s = do
     Right s -> return s
     Left b -> do
       let b' = unblockOnEither (getBlocker s1') (getBlocker s2')
+      whenProfile Profile.Caching $ tickCM (HasPTSRule a (NoAbs "_" s2))
       addConstraint (unblockOnEither b b') $ HasPTSRule a (NoAbs "_" s2)
       return $ FunSort s1 s2
   -- Andreas, 2023-05-20:  I made inferFunSort step-by-step analogous to inferPiSort.
@@ -206,7 +207,7 @@ shouldBeSort t = ifIsSort t return (typeError $ ShouldBeASort t)
 --
 --   Precondition: given term is a well-sorted type.
 sortOf
-  :: forall m. (PureTCM m, MonadBlock m, MonadConstraint m)
+  :: forall m. (PureTCM m, MonadBlock m, MonadConstraint m, MonadStatistics m)
   => Term -> m Sort
 sortOf t = do
   reportSDoc "tc.sort" 60 $ "sortOf" <+> prettyTCM t
@@ -219,6 +220,7 @@ sortOf t = do
         let a = unEl $ unDom adom
         sa <- sortOf a
         sb <- mapAbstraction adom (sortOf . unEl) b
+        whenProfile Profile.Caching $ tickCM (HasPTSRule (adom $> El sa a) sb)
         inferPiSort (adom $> El sa a) sb
       Sort s     -> return $ univSort s
       Var i es   -> do
