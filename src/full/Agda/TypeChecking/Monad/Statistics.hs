@@ -123,11 +123,12 @@ tickCN :: MonadStatistics m =>  Constraint -> Integer -> m ()
 tickCN c n = modifyCacheCounter c (n +)
 
 printCacheCounter :: (MonadDebug m, MonadTCEnv m, HasOptions m)
-                  => Maybe TopLevelModuleName -> ConstraintsCache -> m ()
-printCacheCounter mmname stats = do
+                  => (Constraint -> m Doc) -> Maybe TopLevelModuleName -> ConstraintsCache -> m ()
+printCacheCounter prettyp mmname stats = do
   unlessNull (Map.toList stats) $ \ stats -> do
+    showcol1 <- traverse (prettyp . fst) stats
     let -- First column (left aligned) is accounts.
-        col1 = Boxes.vcat Boxes.left  $ map (Boxes.text . show) $ map fst stats
+        col1 = Boxes.vcat Boxes.left  $ map (Boxes.text . prettyShow) $ showcol1
         -- Second column (right aligned) is numbers.
         col2 = Boxes.vcat Boxes.right $ map (Boxes.text . showThousandSep . snd) stats
         table = Boxes.hsep 1 Boxes.left [col1, col2]
