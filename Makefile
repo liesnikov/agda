@@ -247,6 +247,12 @@ else
 	time $(QUICK_CABAL_INSTALL) $(CABAL_INSTALL_BIN_OPTS) --program-suffix=-quicker
 endif
 
+.PHONY: v2-quicker-build
+
+v2-quicker-build:
+	$(CABAL) build exe:agda $(CABAL_OPT_FAST) --builddir=$(QUICK_BUILD_DIR) -j1 --disable-library-profiling -fdebug -fenable-cluster-counting --ghc-options=$(GHC_OPTS) $(CABAL_OPTS)
+	@echo "$(QUICK_BUILD_DIR)/build/x86_64-linux/ghc-$(GHC_VER)/Agda-$(VERSION)/build/agda/agda"
+
 .PHONY: v2-type-check ## Type check the Agda source only (-fno-code) with v2-cabal.
 # Takes max 40s; can be quicker than make quicker-install-bin (max 5min).
 #
