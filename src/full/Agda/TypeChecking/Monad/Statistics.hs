@@ -129,14 +129,15 @@ tickCN :: MonadStatistics m => CacheEntry -> Integer -> m ()
 tickCN c n = modifyCacheCounter c (n +)
 
 printCacheCounter :: (MonadDebug m, MonadTCEnv m, HasOptions m)
-                  => (CacheEntry -> m Doc) -> Maybe TopLevelModuleName -> ConstraintsCache -> m ()
-printCacheCounter prettyp mmname stats = do
+                  => (CacheEntry -> m Doc) -> Integer -> Maybe TopLevelModuleName -> ConstraintsCache -> m ()
+printCacheCounter prettyp mmname stats n = do
   unlessNull (Map.toList stats) $ \ stats -> do
-    showcol1 <- traverse (prettyp . fst) stats
+    let stats' = filter ((> n) . snd) stats
+    showcol1 <- traverse (prettyp . fst) stats'
     let -- First column (left aligned) is accounts.
         col1 = Boxes.vcat Boxes.left  $ map (Boxes.text . prettyShow) $ showcol1
         -- Second column (right aligned) is numbers.
-        col2 = Boxes.vcat Boxes.right $ map (Boxes.text . showThousandSep . snd) stats
+        col2 = Boxes.vcat Boxes.right $ map (Boxes.text . showThousandSep . snd) stats'
         table = Boxes.hsep 1 Boxes.left [col1, col2]
     alwaysReportSLn "" 1 $ caseMaybe mmname "Accumulated cache statistics" $ \ mname ->
       "Cache statistics for " ++ prettyShow mname
