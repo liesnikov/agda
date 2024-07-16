@@ -166,7 +166,6 @@ compareAs :: forall m. MonadConversion m => Comparison -> CompareAs -> Term -> T
   -- If one term is a meta, try to instantiate right away. This avoids unnecessary unfolding.
   -- Andreas, 2012-02-14: This is UNSOUND for subtyping!
 compareAs cmp a u v = do
-  whenProfile Profile.Caching $ tickCM (ValueCmp cmp a u v)
   reportSDoc "tc.conv.term" 20 $ sep $
     [ "compareTerm"
     , nest 2 $ prettyTCM u <+> prettyTCM cmp <+> prettyTCM v
@@ -295,6 +294,7 @@ compareAs' cmp tt m n = case tt of
 compareTerm' :: forall m. MonadConversion m => Comparison -> Type -> Term -> Term -> m ()
 compareTerm' cmp a m n =
   verboseBracket "tc.conv.term" 20 "compareTerm" $ do
+  whenProfile Profile.Caching $ tickCM (ValueCmp cmp (AsTermsOf a) m n)
   (ba, a') <- reduceWithBlocker a
   (catchConstraint (ValueCmp cmp (AsTermsOf a') m n) :: m () -> m ()) $ blockOnError ba $ do
     reportSDoc "tc.conv.term" 30 $ fsep
@@ -543,6 +543,9 @@ compareAtom cmp t m n =
                              , prettyTCM t
                              ]
     whenProfile Profile.Conversion $ tick "compare by reduction"
+    case t of
+      AsTypes -> whenProfile Profile.Caching $ tickCM (ValueCmp cmp t m n)
+      _ -> return ()
     -- Are we currently defining mutual functions? Which?
     currentMutuals <- maybe (pure Set.empty) (mutualNames <.> lookupMutualBlock) =<< asksTC envMutualBlock
 
@@ -1563,6 +1566,7 @@ equalLevel :: forall m. MonadConversion m => Level -> Level -> m ()
 equalLevel a b = do
   reportSDoc "tc.conv.level" 50 $ sep [ "equalLevel", nest 2 $ parens $ pretty a, nest 2 $ parens $ pretty b ]
   whenProfile Profile.Conversion $ tick "compare levels"
+  whenProfile Profile.Caching $ tickCM (LevelCmp CmpEq a b)
   -- Andreas, 2013-10-31 remove common terms (that don't contain metas!)
   -- THAT's actually UNSOUND when metas are instantiated, because
   --     max a b == max a c  does not imply  b == c

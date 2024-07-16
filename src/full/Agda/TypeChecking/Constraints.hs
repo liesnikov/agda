@@ -47,18 +47,13 @@ import Agda.Utils.Impossible
 
 instance MonadConstraint TCM where
   addConstraint             = addConstraintTCM
-  addAwakeConstraint        = addAwakeConstraintTCM
+  addAwakeConstraint        = addAwakeConstraint'
   solveConstraint           = solveConstraintTCM
   solveSomeAwakeConstraints = solveSomeAwakeConstraintsTCM
   wakeConstraints           = wakeConstraintsTCM
   stealConstraints          = stealConstraintsTCM
   modifyAwakeConstraints    = modifyTC . mapAwakeConstraints
   modifySleepingConstraints = modifyTC . mapSleepingConstraints
-
-addAwakeConstraintTCM :: Blocker -> Constraint -> TCM ()
-addAwakeConstraintTCM b c = do
-  tickCM c
-  addAwakeConstraint' b c
 
 addConstraintTCM :: Blocker -> Constraint -> TCM ()
 addConstraintTCM unblock c = do
@@ -76,7 +71,6 @@ addConstraintTCM unblock c = do
           __IMPOSSIBLE__
       -- Need to reduce to reveal possibly blocking metas
       c <- reduce =<< instantiateFull c
-      tickC c
       caseMaybeM (simpl c) {-no-} (addConstraint' unblock c) $ {-yes-} \ cs -> do
           reportSDoc "tc.constr.add" 20 $ "  simplified:" <+> prettyList (map prettyTCM cs)
           mapM_ solveConstraint_ cs
@@ -308,7 +302,6 @@ solveConstraint_ (UnBlock m)                =   -- alwaysUnblock since these hav
 solveConstraint_ (FindInstance m cands) = findInstance m cands
 solveConstraint_ (ResolveInstanceHead q) = resolveInstanceHead q
 solveConstraint_ (CheckFunDef i q cs _err) = withoutCache $ do
-  whenProfile Profile.Caching $ tickCM (CheckFunDef i q cs _err)
   -- re #3498: checking a fundef would normally be cached, but here it's
   -- happening out of order so it would only corrupt the caching log.
   checkFunDef i q cs

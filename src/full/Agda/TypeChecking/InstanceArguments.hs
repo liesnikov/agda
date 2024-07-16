@@ -1009,7 +1009,7 @@ addTypedInstance' w orig x t = do
     [ "adding typed instance" <+> prettyTCM x <+> "with type"
     , prettyTCM =<< flip abstract t <$> getContextTelescope
     ]
-
+  whenProfile Profile.Caching $ tickCM (ResolveInstanceHead x)
   (tel, hdt, n) <- getOutputTypeName t
   case n of
     OutputTypeName n -> addContext tel $ do
@@ -1055,7 +1055,6 @@ addTypedInstance' w orig x t = do
 
 resolveInstanceHead :: QName -> TCM ()
 resolveInstanceHead q = do
-  whenProfile Profile.Caching $ tickCM (ResolveInstanceHead q)
   clearUnknownInstance q
   -- Andreas, 2022-12-04, issue #6380:
   -- Do not warn about unusable instances here.

@@ -1468,6 +1468,7 @@ subtypingForSizeLt dir   x mvar t args v cont = do
           let xArgs = MetaV x $ map Apply args
               v'    = Def qSizeLt [Apply $ Arg ai yArgs]
               c     = dirToCmp (`ValueCmp` (AsTermsOf sizeUniv)) dir xArgs v'
+          whenProfile Profile.Caching $ tickCM c
           catchConstraint c $ cont v'
         _ -> fallback
 
