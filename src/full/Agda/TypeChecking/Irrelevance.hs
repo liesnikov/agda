@@ -304,7 +304,7 @@ usableAtModality' :: MonadConstraint TCM
   => Maybe Sort -> WhyCheckModality -> Modality -> Term -> TCM ()
 usableAtModality' ms why mod t =
   catchConstraint (UsableAtModality why ms mod t) $ do
-    whenProfile Profile.Caching $ tickC (UsableAtModality why ms mod t)
+    whenProfile Profile.Caching $ tickCM (UsableAtModality why ms mod t)
     whenM (maybe (pure True) isFibrant ms) $ do
       res <- runExceptT $ usableMod mod t
       case res of

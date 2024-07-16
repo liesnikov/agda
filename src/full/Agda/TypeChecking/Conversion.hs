@@ -166,7 +166,7 @@ compareAs :: forall m. MonadConversion m => Comparison -> CompareAs -> Term -> T
   -- If one term is a meta, try to instantiate right away. This avoids unnecessary unfolding.
   -- Andreas, 2012-02-14: This is UNSOUND for subtyping!
 compareAs cmp a u v = do
-  whenProfile Profile.Caching $ tickC (ValueCmp cmp a u v)
+  whenProfile Profile.Caching $ tickCM (ValueCmp cmp a u v)
   reportSDoc "tc.conv.term" 20 $ sep $
     [ "compareTerm"
     , nest 2 $ prettyTCM u <+> prettyTCM cmp <+> prettyTCM v
@@ -941,7 +941,7 @@ compareElims :: forall m. MonadConversion m => [Polarity] -> [IsForced] -> Type 
 compareElims pols0 fors0 a v els01 els02 =
   verboseBracket "tc.conv.elim" 20 "compareElims" $
   (catchConstraint (ElimCmp pols0 fors0 a v els01 els02) :: m () -> m ()) $ do
-  whenProfile Profile.Caching $ tickC (ElimCmp pols0 fors0 a v els01 els02)
+  whenProfile Profile.Caching $ tickCM (ElimCmp pols0 fors0 a v els01 els02)
   let v1 = applyE v els01
       v2 = applyE v els02
       failure = typeError $ UnequalTerms CmpEq v1 v2 (AsTermsOf a)
@@ -1310,6 +1310,7 @@ leqSort s1 s2 = do
                         , pretty s2 ]
         ]
   whenProfile Profile.Conversion $ tick "compare sorts"
+  whenProfile Profile.Caching $ tickCM (SortCmp CmpLeq s1 s2)
 
   SynEq.checkSyntacticEquality s1 s2 (\_ _ -> return ()) $ \s1 s2 -> do
 
@@ -1426,7 +1427,7 @@ leqLevel a b = catchConstraint (LevelCmp CmpLeq a b) $ do
           sep [ prettyTCM a <+> "=<"
               , prettyTCM b ]
       whenProfile Profile.Conversion $ tick "compare levels"
-      whenProfile Profile.Caching $ tickC (LevelCmp CmpLeq a b)
+      whenProfile Profile.Caching $ tickCM (LevelCmp CmpLeq a b)
       (a, b) <- normalise (a, b)
       SynEq.checkSyntacticEquality' a b
         (\_ _ ->
@@ -1745,7 +1746,7 @@ equalSort s1 s2 = do
            ]
     ]
   whenProfile Profile.Conversion $ tick "compare sorts"
-  whenProfile Profile.Caching    $ tickC (SortCmp CmpEq s1 s2)
+  whenProfile Profile.Caching    $ tickCM (SortCmp CmpEq s1 s2)
   guardPointerEquality s1 s2 "pointer equality: sorts" $
     SynEq.checkSyntacticEquality s1 s2 (\_ _ -> return ()) $ \s1 s2 -> do
 
@@ -2226,7 +2227,7 @@ compareTermOnFace'
   => (Substitution -> Comparison -> Type -> Term -> Term -> m ())
   -> Comparison -> Term -> Type -> Term -> Term -> m ()
 compareTermOnFace' k cmp phi ty u v = do
-  whenProfile Profile.Caching $ tickC (ValueCmpOnFace cmp phi ty u v)
+  whenProfile Profile.Caching $ tickCM (ValueCmpOnFace cmp phi ty u v)
   reportSDoc "tc.conv.face" 40 $
     text "compareTermOnFace:" <+> pretty phi <+> "|-" <+> pretty u <+> "==" <+> pretty v <+> ":" <+> pretty ty
   whenProfile Profile.Conversion $ tick "compare at face type"

@@ -45,7 +45,7 @@ import Agda.TypeChecking.Monad.Debug
 import Agda.TypeChecking.Monad.MetaVars (metaType)
 import Agda.TypeChecking.Monad.Pure
 import Agda.TypeChecking.Monad.Signature (HasConstInfo(..), applyDef)
-import Agda.TypeChecking.Monad.Statistics (tickC)
+import Agda.TypeChecking.Monad.Statistics (tickCM)
 import Agda.TypeChecking.Pretty
 import Agda.TypeChecking.Records (getDefType)
 import Agda.TypeChecking.ProjectionLike
@@ -137,7 +137,7 @@ inferFunSort a s = do
 --
 hasPTSRule :: Dom Type -> Abs Sort -> TCM ()
 hasPTSRule a s = do
-  whenProfile Profile.Caching $ tickC (HasPTSRule a s)
+  whenProfile Profile.Caching $ tickCM (HasPTSRule a s)
   reportSDoc "tc.conv.sort" 35 $ vcat
     [ "hasPTSRule"
     , "a =" <+> prettyTCM a

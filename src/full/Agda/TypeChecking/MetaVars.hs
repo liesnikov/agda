@@ -1361,7 +1361,7 @@ assignMeta' m x t n ids v = do
 --   instantiated, add a constraint to check the instantiation later.
 checkMetaInst :: MetaId -> TCM ()
 checkMetaInst x = do
-  whenProfile Profile.Caching $ tickC (CheckMetaInst x)
+  whenProfile Profile.Caching $ tickCM (CheckMetaInst x)
   m <- lookupLocalMeta x
   let postpone = addConstraint (unblockOnMeta x) $ CheckMetaInst x
   case mvInstantiation m of

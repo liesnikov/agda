@@ -5,7 +5,7 @@
 module Agda.TypeChecking.Monad.Statistics
     ( MonadStatistics(..)
     , tick, tickN, tickMax, getStatistics, modifyStatistics, printStatistics
-    , tickC, tickCN, getConstraintsCache, modifyConstraintsCache, printCacheCounter
+    , tickCC, tickCM, tickC, tickCN, getConstraintsCache, modifyConstraintsCache, printCacheCounter
     ) where
 
 import Control.DeepSeq
@@ -115,6 +115,12 @@ getConstraintsCache = useR lensConstraintsCache
 
 modifyConstraintsCache :: (ConstraintsCache -> ConstraintsCache) -> TCM ()
 modifyConstraintsCache f = lensConstraintsCache `modifyTCLens` f
+
+tickCC :: MonadStatistics m => Closure Constraint -> m ()
+tickCC (Closure _ env _ _ constr) = tickC (envContext env, constr)
+
+tickCM :: (MonadStatistics m, MonadTCEnv m) => Constraint -> m ()
+tickCM c = askTC >>= \ env -> tickC (envContext env, c)
 
 tickC :: MonadStatistics m => CacheEntry -> m ()
 tickC c = tickCN c 1
