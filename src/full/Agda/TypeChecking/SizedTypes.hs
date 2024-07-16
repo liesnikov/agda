@@ -51,7 +51,7 @@ import Agda.Utils.Impossible
 checkSizeLtSat :: Term -> TCM ()
 checkSizeLtSat t = whenM haveSizeLt $ do
   reportSDoc "tc.size" 10 $ do
-    whenProfile Profile.Caching $ tickC (CheckSizeLtSat t)
+    whenProfile Profile.Caching $ tickCM (CheckSizeLtSat t)
     tel <- getContextTelescope
     sep
       [ "checking that " <+> prettyTCM t <+> " is not an empty type of sizes"

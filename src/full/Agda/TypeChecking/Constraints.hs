@@ -57,7 +57,7 @@ instance MonadConstraint TCM where
 
 addAwakeConstraintTCM :: Blocker -> Constraint -> TCM ()
 addAwakeConstraintTCM b c = do
-  tickC c
+  tickCM c
   addAwakeConstraint' b c
 
 addConstraintTCM :: Blocker -> Constraint -> TCM ()
@@ -308,7 +308,7 @@ solveConstraint_ (UnBlock m)                =   -- alwaysUnblock since these hav
 solveConstraint_ (FindInstance m cands) = findInstance m cands
 solveConstraint_ (ResolveInstanceHead q) = resolveInstanceHead q
 solveConstraint_ (CheckFunDef i q cs _err) = withoutCache $ do
-  whenProfile Profile.Caching $ tickC (CheckFunDef i q cs _err)
+  whenProfile Profile.Caching $ tickCM (CheckFunDef i q cs _err)
   -- re #3498: checking a fundef would normally be cached, but here it's
   -- happening out of order so it would only corrupt the caching log.
   checkFunDef i q cs
