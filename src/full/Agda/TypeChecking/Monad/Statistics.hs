@@ -38,11 +38,11 @@ class ReadTCState m => MonadStatistics m where
     =>  String -> (Integer -> Integer) -> m ()
   modifyCounter x = lift . modifyCounter x
 
-  modifyCacheCounter :: Constraint -> (Integer -> Integer) -> m ()
+  modifyCacheCounter :: CacheEntry -> (Integer -> Integer) -> m ()
 
   default modifyCacheCounter
     :: (MonadStatistics n, MonadTrans t, t n ~ m)
-    => Constraint -> (Integer -> Integer) -> m ()
+    => CacheEntry -> (Integer -> Integer) -> m ()
   modifyCacheCounter x = lift . modifyCacheCounter x
 
 instance MonadStatistics m => MonadStatistics (ExceptT e m)
@@ -116,14 +116,14 @@ getConstraintsCache = useR lensConstraintsCache
 modifyConstraintsCache :: (ConstraintsCache -> ConstraintsCache) -> TCM ()
 modifyConstraintsCache f = lensConstraintsCache `modifyTCLens` f
 
-tickC :: MonadStatistics m =>  Constraint -> m ()
+tickC :: MonadStatistics m => CacheEntry -> m ()
 tickC c = tickCN c 1
 
-tickCN :: MonadStatistics m =>  Constraint -> Integer -> m ()
+tickCN :: MonadStatistics m => CacheEntry -> Integer -> m ()
 tickCN c n = modifyCacheCounter c (n +)
 
 printCacheCounter :: (MonadDebug m, MonadTCEnv m, HasOptions m)
-                  => (Constraint -> m Doc) -> Maybe TopLevelModuleName -> ConstraintsCache -> m ()
+                  => (CacheEntry -> m Doc) -> Maybe TopLevelModuleName -> ConstraintsCache -> m ()
 printCacheCounter prettyp mmname stats = do
   unlessNull (Map.toList stats) $ \ stats -> do
     showcol1 <- traverse (prettyp . fst) stats

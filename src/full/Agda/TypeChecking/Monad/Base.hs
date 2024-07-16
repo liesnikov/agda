@@ -1428,8 +1428,10 @@ instance Pretty CompareAs where
   pretty AsSizes       = ":" <+> text "Size"
   pretty AsTypes       = empty
 
+type CacheEntry = Constraint
+type ConstraintsCache = Map CacheEntry Integer
 
-type ConstraintsCache = Map Constraint Integer
+
 
 ---------------------------------------------------------------------------
 -- * Open things
