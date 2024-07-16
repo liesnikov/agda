@@ -41,6 +41,7 @@ import Agda.TypeChecking.Monad.Debug
 import Agda.TypeChecking.Monad.Context
 import Agda.TypeChecking.Monad.Signature (HasConstInfo)
 import Agda.TypeChecking.Monad.State
+import Agda.TypeChecking.Monad.Statistics
 import Agda.TypeChecking.Substitute
 import {-# SOURCE #-} Agda.TypeChecking.Telescope
 
@@ -85,6 +86,7 @@ class ( MonadConstraint m
       , HasBuiltins m
       , HasConstInfo m
       , MonadDebug m
+      , MonadStatistics m
       ) => MonadMetaSolver m where
   -- | Generate a new meta variable with some instantiation given.
   --   For instance, the instantiation could be a 'PostponedTypeCheckingProblem'.
