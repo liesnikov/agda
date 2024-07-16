@@ -1297,6 +1297,71 @@ instance TermLike Constraint where
 
 instance AllMetas Constraint
 
+instance Pretty Constraint where
+  pretty = \case
+        ValueCmp cmp ty s t -> prettyCmp (pretty cmp) s t <?> pretty ty
+        ValueCmpOnFace cmp p ty s t ->
+            sep [ pretty p <+> "|"
+                , prettyCmp (pretty cmp) s t ]
+            <?> (":" <+> pretty ty)
+        ElimCmp cmps fs t v us vs -> prettyCmp "~~" us vs   <?> (":" <+> pretty t)
+        LevelCmp cmp a b         -> prettyCmp (pretty cmp) a b
+        SortCmp cmp s1 s2        -> prettyCmp (pretty cmp) s1 s2
+        UnBlock m   -> "Unblock constraint" <+> pretty m
+
+        FindInstance m mcands -> do
+          sep [ "Resolve instance argument" <?> pretty m
+                -- #4071: Non-visible arguments to the meta are in scope of the candidates add
+                --        those here to not get out of scope deBruijn indices when printing
+                --        unsolved constraints.
+              , pretty mcands
+              ]
+          where
+            overlap c = case candidateOverlap c of
+              FieldOverlap   -> "overlap"
+              Incoherent     -> "[incoherent]"
+              Overlappable   -> "[overlappable]"
+              Overlapping    -> "[overlapping]"
+              Overlaps       -> "[overlaps]"
+              DefaultOverlap -> empty
+
+            cands = case mcands of
+              Nothing -> "No candidates yet"
+              Just cnds -> hang "Candidates" 2 $ vcat
+                [ hang (overlap c <+> pretty c <+> ":") 2 $
+                    pretty (candidateType c)
+                | c <- cnds
+                ]
+
+        ResolveInstanceHead q ->
+            "Resolve target type of instance: " <?> pretty q
+        IsEmpty r t ->
+            "Is empty:" <?> pretty t
+        CheckSizeLtSat t ->
+            "Is not empty type of sizes:" <?> pretty t
+        CheckFunDef i q cs err -> do
+            vcat [ "Check definition of" <+> pretty q ]
+        HasBiggerSort a -> "Has bigger sort:" <+> pretty a
+        HasPTSRule a b -> "Has PTS rule:" <+> case b of
+          NoAbs _ b -> pretty (a,b)
+          Abs x b   -> "(" <> (pretty a <+> "," <+> (pretty b)) <> ")"
+        UnquoteTactic v _ _ -> "Unquote tactic:" <+> pretty v
+        CheckDataSort q s -> do
+          hsep [ "Sort", pretty s, "of", pretty q, "admits data/record definitions." ]
+        CheckMetaInst x -> "Check meta instantiation" <+> pretty x
+        CheckType t ->
+          pretty t <+> "is a well-formed type"
+        CheckLockedVars t ty lk lk_ty -> do
+          "Lock" <+> pretty lk <+> "|-" <+> pretty t <+> ":" <+> pretty ty
+        UsableAtModality _ ms mod t -> "Is usable at" <+> (pretty mod) <+> "modality:" <+> pretty t
+
+      where
+        prettyCmp
+          :: (Pretty a, Pretty b)
+          => Doc -> a -> b -> Doc
+        prettyCmp cmp x y = pretty x <?> (cmp <+> pretty y)
+
+
 data Comparison = CmpEq | CmpLeq
   deriving (Eq, Ord, Show, Generic)
 
@@ -4205,6 +4270,9 @@ instance Free Candidate where
 
 instance HasOverlapMode Candidate where
   lensOverlapMode f x = f (candidateOverlap x) <&> \m -> x{ candidateOverlap = m }
+
+instance Pretty Candidate where
+  pretty (Candidate k t ty _) = pretty t <+> ":" <+> pretty ty
 
 ---------------------------------------------------------------------------
 -- ** Checking arguments
