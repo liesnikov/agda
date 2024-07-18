@@ -8,6 +8,9 @@ module Agda.TypeChecking.Monad.Statistics
     , tickCC, tickCM, tickC, tickCN, getConstraintsCache, modifyConstraintsCache, printCacheCounter
     ) where
 
+import Data.List (sortOn)
+import Data.Ord (Down(..))
+
 import Control.DeepSeq
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -132,7 +135,7 @@ printCacheCounter :: (MonadDebug m, MonadTCEnv m, HasOptions m)
                   => (CacheEntry -> m Doc) -> Integer -> Maybe TopLevelModuleName -> ConstraintsCache -> m ()
 printCacheCounter prettyp n mmname stats = do
   unlessNull (Map.toList stats) $ \ stats -> do
-    let stats' = filter ((> n) . snd) stats
+    let stats' = sortOn (Down . snd) . filter ((> n) . snd) $ stats
     showcol1 <- traverse (prettyp . fst) stats'
     let -- First column (left aligned) is accounts.
         col1 = Boxes.vcat Boxes.left  $ map (Boxes.text . prettyShow) $ showcol1

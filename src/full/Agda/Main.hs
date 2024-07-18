@@ -213,7 +213,7 @@ runAgdaWithOptions interactor progName opts = do
 
             -- Print accumulated statistics.
             printStatistics Nothing =<< useTC lensAccumStatistics
-            printCacheCounter pretty 0 Nothing =<< useTC lensConstraintsCache
+            printCacheCounter pretty 1 Nothing =<< useTC lensConstraintsCache
   where
     -- Options are fleshed out here so that (most) errors like
     -- "bad library path" are validated within the interactor,
