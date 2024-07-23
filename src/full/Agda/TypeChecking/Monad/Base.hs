@@ -323,6 +323,8 @@ data PostScopeState = PostScopeState
     -- ^ Associates opaque identifiers to their actual blocks.
   , stPostOpaqueIds           :: Map QName OpaqueId
     -- ^ Associates each opaque QName to the block it was defined in.
+  , stPostConstraintsCache    :: !ConstraintsCache
+    -- ^ Cache for constraints.
   }
   deriving (Generic)
 
@@ -486,6 +488,7 @@ initPostScopeState = PostScopeState
   , stPostOpaqueBlocks         = Map.empty
   , stPostOpaqueIds            = Map.empty
   , stPostForeignCode          = Map.empty
+  , stPostConstraintsCache     = Map.empty
   }
 
 initState :: TCState
@@ -662,6 +665,10 @@ stOpaqueIds :: Lens' TCState (Map QName OpaqueId)
 stOpaqueIds f s =
   f (stPostOpaqueIds (stPostScopeState s)) <&>
   \x -> s {stPostScopeState = (stPostScopeState s) {stPostOpaqueIds = x}}
+
+stConstraintsCache :: Lens' TCState ConstraintsCache
+stConstraintsCache f s = f (stPostConstraintsCache (stPostScopeState s)) <&>
+  \x -> s {stPostScopeState = (stPostScopeState s) {stPostConstraintsCache = x}}
 
 stSyntaxInfo :: Lens' TCState HighlightingInfo
 stSyntaxInfo f s =
