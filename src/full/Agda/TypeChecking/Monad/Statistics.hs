@@ -5,7 +5,7 @@
 module Agda.TypeChecking.Monad.Statistics
     ( MonadStatistics(..)
     , tick, tickN, tickMax, getStatistics, modifyStatistics, printStatistics
-    , tickCC, tickCM, tickC, tickCN, getConstraintsCache, modifyConstraintsCache, printCacheCounter
+    , tickCC, tickCM, tickC, tickCN, getConstraintsCache, modifyConstraintsCache, printCacheCounter, printCacheCounterCSV
     ) where
 
 import Data.List (sortOn)
@@ -145,3 +145,42 @@ printCacheCounter prettyp n mmname stats = do
     alwaysReportSLn "" 1 $ caseMaybe mmname "Accumulated cache statistics" $ \ mname ->
       "Cache statistics for " ++ prettyShow mname
     alwaysReportSLn "" 1 $ Boxes.render table
+
+
+--print as a CSV file
+printCacheCounterCSV ::
+  forall m. (MonadDebug m, MonadTCEnv m, HasOptions m) =>
+  (CacheEntry -> m Doc) -> Integer -> Maybe TopLevelModuleName -> ConstraintsCache -> m ()
+printCacheCounterCSV prettyp n mmname stats = do
+  unlessNull (Map.toList stats) $ \ stats -> do
+    let stats' = sortOn (Down . snd) . filter ((> n) . snd) $ stats
+    showcol1 <- traverse (uncurry cachePrinter) stats'
+    alwaysReportSLn "" 1 $ caseMaybe mmname "Accumulated csv statistics" $ \ mname ->
+      "Statistics for " ++ prettyShow mname
+    alwaysReportSLn "" 1 $ renderStyle (Style LeftMode 100 0.1) $ vsep showcol1
+  where
+    cachePrinter :: CacheEntry -> Integer -> m Doc
+    cachePrinter (ctx, cnstr) i = do
+      let tag = case cnstr of
+            ValueCmp _ _ _ _ -> "ValueCmp"
+            ValueCmpOnFace _ _ _ _ _ -> "ValueCmpOnFace"
+            ElimCmp _ _ _ _ _ _ -> "ElimCmp"
+            SortCmp _ _ _ -> "SortCmp"
+            LevelCmp _ _ _ -> "LevelCmp"
+            HasBiggerSort _ -> "HasBiggerSort"
+            HasPTSRule _ _ -> "HasPTSRule"
+            CheckDataSort _ _ -> "CheckDataSort"
+            CheckMetaInst _ -> "CheckMetaInst"
+            CheckType _ -> "CheckType"
+            UnBlock _ -> "UnBlock"
+            IsEmpty _ _ -> "IsEmpty"
+            CheckSizeLtSat _ -> "CheckSizeLtSat"
+            FindInstance _ _ -> "FindInstance"
+            ResolveInstanceHead _ -> "ResolveInstanceHead"
+            CheckFunDef _ _ _ _ -> "CheckFunDef"
+            UnquoteTactic _ _ _ -> "UnquoteTactic"
+            CheckLockedVars _ _ _ _ -> "CheckLockedVars"
+            UsableAtModality _ _ _ _ -> "UsableAtModality"
+          pcnstr = pretty cnstr
+          pctx = pretty ctx
+      return . hsep $ punctuate (text ",") [tag, doubleQuotes pcnstr, pretty i, doubleQuotes pctx]
