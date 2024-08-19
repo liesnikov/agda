@@ -16,7 +16,7 @@
       # (and GHC & Haskell libraries from the nixpkgs snapshot)
       agda-pkg = hpkgs.developPackage {
           root = ./.;
-          modifier = hlib.dontCheck;
+          # modifier = hlib.dontCheck;
           # TODO Make check phase work
           # At least requires:
           #   Setting AGDA_BIN (or using the Makefile, which at least requires cabal-install)
@@ -34,6 +34,8 @@
             pkgs.haskell-language-server
             pkgs.hlint
             pkgs.icu
+            pkgs.happy
+            pkgs.alex
             hpkgs.fix-whitespace
             # Tools for building the agda docs
             (pkgs.python3.withPackages (py3pkgs: [
