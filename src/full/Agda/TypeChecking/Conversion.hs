@@ -944,7 +944,7 @@ compareElims :: forall m. MonadConversion m => [Polarity] -> [IsForced] -> Type 
 compareElims pols0 fors0 a v els01 els02 =
   verboseBracket "tc.conv.elim" 20 "compareElims" $
   (catchConstraint (ElimCmp pols0 fors0 a v els01 els02) :: m () -> m ()) $ do
-  whenProfile Profile.Caching $ tickCM (ElimCmp pols0 fors0 a v els01 els02)
+  whenProfile Profile.Caching $ tickCM (ElimCmp (take 10 pols0) (take 10 fors0) a v els01 els02)
   let v1 = applyE v els01
       v2 = applyE v els02
       failure = typeError $ UnequalTerms CmpEq v1 v2 (AsTermsOf a)
