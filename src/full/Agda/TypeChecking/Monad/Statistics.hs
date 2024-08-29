@@ -157,7 +157,9 @@ printCacheCounterCSV prettyp n mmname stats = do
     showcol1 <- traverse (uncurry cachePrinter) stats'
     alwaysReportSLn "" 1 $ caseMaybe mmname "Accumulated csv statistics" $ \ mname ->
       "Statistics for " ++ prettyShow mname
+    reportSLn "" 1 ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
     alwaysReportSLn "" 1 $ renderStyle (Style LeftMode 100 0.1) $ vsep showcol1
+    reportSLn "" 1 "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
   where
     cachePrinter :: CacheEntry -> Integer -> m Doc
     cachePrinter (ctx, cnstr) i = do

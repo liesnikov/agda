@@ -1181,7 +1181,7 @@ createInterface mname file isMain msrc = do
     -- Profiling: Print statistics.
     printStatistics (Just mname) =<< getStatistics
     printCacheCounter P.pretty 1 Nothing =<< getConstraintsCache
-    printCacheCounterCSV P.pretty 1 Nothing =<< getConstraintsCache
+    printCacheCounterCSV P.pretty 1 (Just mname) =<< getConstraintsCache
 
     -- Get the statistics of the current module
     -- and add it to the accumulated statistics.
