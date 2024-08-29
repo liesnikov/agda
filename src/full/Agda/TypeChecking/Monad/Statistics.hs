@@ -183,4 +183,5 @@ printCacheCounterCSV prettyp n mmname stats = do
             UsableAtModality _ _ _ _ -> "UsableAtModality"
           pcnstr = pretty cnstr
           pctx = pretty ctx
-      return . hsep $ punctuate (text ",") [tag, doubleQuotes pcnstr, pretty i, doubleQuotes pctx]
+          name = maybe [] (return . pretty) mmname
+      return . hsep $ punctuate (text ",") $ name ++ [ tag, doubleQuotes pcnstr, pretty i, doubleQuotes pctx]
