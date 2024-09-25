@@ -2236,17 +2236,18 @@ compareTermOnFace'
   => (Substitution -> Comparison -> Type -> Term -> Term -> m ())
   -> Comparison -> Term -> Type -> Term -> Term -> m ()
 compareTermOnFace' k cmp phi ty u v = do
-  whenProfile Profile.Caching $ tickCM (ValueCmpOnFace cmp phi ty u v)
+  ce <- getCacheEntryR (ValueCmpOnFace cmp phi ty u v)
+  whenProfile Profile.Caching $ tickC ce
   reportSDoc "tc.conv.face" 40 $
     text "compareTermOnFace:" <+> pretty phi <+> "|-" <+> pretty u <+> "==" <+> pretty v <+> ":" <+> pretty ty
   whenProfile Profile.Conversion $ tick "compare at face type"
 
   phi <- reduce phi
-  _ <- forallFaceMaps phi postponed $ \ faces alpha ->
+  _ <- forallFaceMaps phi (postponed ce) $ \ faces alpha ->
       k alpha cmp (applySubst alpha ty) (applySubst alpha u) (applySubst alpha v)
   return ()
  where
-  postponed ms blocker psi = do
+  postponed ce ms blocker psi = do
     phi <- runNamesT [] $ do
              imin <- cl $ getPrimitiveTerm PrimIMin
              ineg <- cl $ getPrimitiveTerm PrimINeg
@@ -2254,6 +2255,7 @@ compareTermOnFace' k cmp phi ty u v = do
              let phi = foldr (\ (i,b) r -> do i <- open (var i); pure imin <@> (if b then i else pure ineg <@> i) <@> r)
                           psi (IntMap.toList ms) -- TODO Andrea: make a view?
              phi
+    whenProfile Profile.Caching $ untickC ce
     addConstraint blocker (ValueCmpOnFace cmp phi ty u v)
 
 ---------------------------------------------------------------------------
