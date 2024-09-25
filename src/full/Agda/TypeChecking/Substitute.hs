@@ -1882,3 +1882,16 @@ instance Ord Constraint where
   _                                 `compare` CheckLockedVars {}                = GT
 
   UsableAtModality w1 s1 m1 t1 `compare` UsableAtModality w2 s2 m2 t2 = compare (w1, s1, m1, t1) (w2, s2, m2, t2)
+
+
+instance Eq CacheConstraint where
+  RegularConstraint c1 == RegularConstraint c2 = c1 == c2
+  InstanceConstraint t1 == InstanceConstraint t2 = t1 == t2
+  _ == _ = False
+
+instance Ord CacheConstraint where
+  RegularConstraint c `compare` RegularConstraint d = c `compare` d
+  RegularConstraint{} `compare` _                   = LT
+  _                   `compare` RegularConstraint{} = GT
+
+  InstanceConstraint t `compare` InstanceConstraint u = t `compare` u

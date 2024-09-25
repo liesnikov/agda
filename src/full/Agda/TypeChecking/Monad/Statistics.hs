@@ -6,6 +6,7 @@ module Agda.TypeChecking.Monad.Statistics
     ( MonadStatistics(..)
     , tick, tickN, tickMax, getStatistics, modifyStatistics, printStatistics
     , tickCC, tickCM, tickC, tickCN, getConstraintsCache, modifyConstraintsCache, printCacheCounter, printCacheCounterCSV
+    , getCacheEntryR, getCacheEntry
     ) where
 
 import Data.List (sortOn)
@@ -25,6 +26,7 @@ import Agda.Syntax.TopLevelModuleName (TopLevelModuleName)
 
 import Agda.TypeChecking.Monad.Base
 --import Agda.TypeChecking.Monad.State (lensConstraintsCache)
+import Agda.TypeChecking.Monad.Constraints
 import Agda.TypeChecking.Monad.Debug
 import Agda.TypeChecking.Substitute ()
 
@@ -121,9 +123,14 @@ modifyConstraintsCache f = stConstraintsCache `modifyTCLens` f
 
 tickCC :: MonadStatistics m => Closure Constraint -> m ()
 tickCC (Closure _ env _ _ constr) = tickC (envContext env, constr)
+getCacheEntryR :: (MonadTCEnv m) => Constraint -> m CacheEntry
+getCacheEntryR = getCacheEntry . RegularConstraint
+
+getCacheEntry :: (MonadTCEnv m) => CacheConstraint -> m CacheEntry
+getCacheEntry c = (\env -> (envContext env, c)) <$> askTC
 
 tickCM :: (MonadStatistics m, MonadTCEnv m) => Constraint -> m ()
-tickCM c = askTC >>= \ env -> tickC (envContext env, c)
+tickCM c = askTC >>= \env -> tickC (envContext env, RegularConstraint c)
 
 tickC :: MonadStatistics m => CacheEntry -> m ()
 tickC c = tickCN c 1
@@ -132,7 +139,7 @@ tickCN :: MonadStatistics m => CacheEntry -> Integer -> m ()
 tickCN c n = modifyCacheCounter c (n +)
 
 printCacheCounter :: (MonadDebug m, MonadTCEnv m, HasOptions m)
-                  => (CacheEntry -> m Doc) -> Integer -> Maybe TopLevelModuleName -> ConstraintsCache -> m ()
+  => (CacheEntry -> m Doc) -> Integer -> Maybe TopLevelModuleName -> ConstraintsCache -> m ()
 printCacheCounter prettyp n mmname stats = do
   unlessNull (Map.toList stats) $ \ stats -> do
     let stats' = sortOn (Down . snd) . filter ((> n) . snd) $ stats
@@ -163,7 +170,7 @@ printCacheCounterCSV prettyp n mmname stats = do
   where
     cachePrinter :: CacheEntry -> Integer -> m Doc
     cachePrinter (ctx, cnstr) i = do
-      let tag = case cnstr of
+      let tagR c = case c of
             ValueCmp _ _ _ _ -> "ValueCmp"
             ValueCmpOnFace _ _ _ _ _ -> "ValueCmpOnFace"
             ElimCmp _ _ _ _ _ _ -> "ElimCmp"
@@ -183,6 +190,9 @@ printCacheCounterCSV prettyp n mmname stats = do
             UnquoteTactic _ _ _ -> "UnquoteTactic"
             CheckLockedVars _ _ _ _ -> "CheckLockedVars"
             UsableAtModality _ _ _ _ -> "UsableAtModality"
+          tag = case cnstr of
+            RegularConstraint c -> tagR c
+            InstanceConstraint t -> "InstanceSearch"
           pcnstr = pretty cnstr
           pctx = pretty ctx
           name = maybe [] (return . pretty) mmname
