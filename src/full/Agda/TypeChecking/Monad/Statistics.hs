@@ -5,8 +5,11 @@
 module Agda.TypeChecking.Monad.Statistics
     ( MonadStatistics(..)
     , tick, tickN, tickMax, getStatistics, modifyStatistics, printStatistics
-    , tickCC, tickCM, tickC, tickCN, getConstraintsCache, modifyConstraintsCache, printCacheCounter, printCacheCounterCSV
     , getCacheEntryR, getCacheEntry
+    , tickCM, tickC, tickCN
+    , untickC
+    , catchConstraintC, catchConstraintCC
+    , getConstraintsCache, modifyConstraintsCache, printCacheCounter, printCacheCounterCSV
     ) where
 
 import Data.List (sortOn)
@@ -33,6 +36,7 @@ import Agda.TypeChecking.Substitute ()
 import Agda.Utils.Maybe
 import Agda.Utils.Null
 import Agda.Syntax.Common.Pretty
+import qualified Agda.Utils.ProfileOptions as Profile
 import Agda.Utils.String
 
 class ReadTCState m => MonadStatistics m where
@@ -121,8 +125,6 @@ getConstraintsCache = useR stConstraintsCache
 modifyConstraintsCache :: (ConstraintsCache -> ConstraintsCache) -> TCM ()
 modifyConstraintsCache f = stConstraintsCache `modifyTCLens` f
 
-tickCC :: MonadStatistics m => Closure Constraint -> m ()
-tickCC (Closure _ env _ _ constr) = tickC (envContext env, constr)
 getCacheEntryR :: (MonadTCEnv m) => Constraint -> m CacheEntry
 getCacheEntryR = getCacheEntry . RegularConstraint
 
@@ -137,6 +139,23 @@ tickC c = tickCN c 1
 
 tickCN :: MonadStatistics m => CacheEntry -> Integer -> m ()
 tickCN c n = modifyCacheCounter c (n +)
+
+untickCM :: (MonadStatistics m, MonadTCEnv m) => Constraint -> m ()
+untickCM c = askTC >>= \ env -> untickCN (envContext env, RegularConstraint c) 1
+
+untickC :: MonadStatistics m => CacheEntry -> m ()
+untickC c = untickCN c 1
+
+untickCN :: MonadStatistics m => CacheEntry -> Integer -> m ()
+untickCN c n = modifyCacheCounter c (-n +)
+
+catchConstraintC :: (MonadStatistics m, MonadConstraint m)
+  => Constraint -> m () -> m ()
+catchConstraintC c m = whenProfile Profile.Caching (tickCM c) >> catchPatternErr (\ unblock -> untickCM c >> addConstraint unblock c) m
+
+catchConstraintCC :: (MonadStatistics m, MonadConstraint m)
+  => Constraint -> Constraint -> m () -> m ()
+catchConstraintCC ce c m = whenProfile Profile.Caching (tickCM ce) >> catchPatternErr (\ unblock -> untickCM c >> addConstraint unblock c) m
 
 printCacheCounter :: (MonadDebug m, MonadTCEnv m, HasOptions m)
   => (CacheEntry -> m Doc) -> Integer -> Maybe TopLevelModuleName -> ConstraintsCache -> m ()

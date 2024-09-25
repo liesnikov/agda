@@ -31,7 +31,6 @@ import Agda.Utils.Functor
 import Agda.Utils.Maybe
 import Agda.Utils.Monad
 import Agda.Utils.Size
-import qualified Agda.Utils.ProfileOptions as Profile
 
 checkLockedVars
   :: Term
@@ -43,8 +42,7 @@ checkLockedVars
   -> Type
      -- ^ type of the lock
   -> TCM ()
-checkLockedVars t ty lk lk_ty = catchConstraint (CheckLockedVars t ty lk lk_ty) $ do
-  whenProfile Profile.Caching $ tickCM (CheckLockedVars t ty lk lk_ty)
+checkLockedVars t ty lk lk_ty = catchConstraintC (CheckLockedVars t ty lk lk_ty) $ do
   -- Have to instantiate the lock, otherwise we might block on it even
   -- after it's been solved (e.g.: it's an interaction point, see #6528)
   -- Update (Andreas, 2023-10-23, issue #6913): need even full instantiation.

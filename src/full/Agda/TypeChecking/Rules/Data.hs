@@ -210,8 +210,9 @@ checkDataDef i name uc (A.DataDefParams gpars ps) cs =
 --   E.g. @IUniv@, @SizeUniv@ etc. do not accept new constructions.
 checkDataSort :: QName -> Sort -> TCM ()
 checkDataSort name s = setCurrentRange name $ do
-  whenProfile Profile.Caching $ tickCM (CheckDataSort name s)
-  ifBlocked s postpone {-else-} $ \ _ (s :: Sort) -> do
+  ce <- getCacheEntryR (CheckDataSort name s)
+  whenProfile Profile.Caching $ tickC ce
+  ifBlocked s (postpone ce) {-else-} $ \ _ (s :: Sort) -> do
     let
       yes :: TCM ()
       yes = return ()
@@ -234,8 +235,8 @@ checkDataSort name s = setCurrentRange name $ do
       MetaS _ _    -> __IMPOSSIBLE__
       DummyS _     -> __IMPOSSIBLE__
   where
-    postpone :: Blocker -> Sort -> TCM ()
-    postpone b s = addConstraint b $ CheckDataSort name s
+    postpone :: CacheEntry -> Blocker -> Sort -> TCM ()
+    postpone ce b s = untickC ce >> addConstraint b (CheckDataSort name s)
 
 -- | Ensure that the type is a sort.
 --   If it is not directly a sort, compare it to a 'newSortMetaBelowInf'.

@@ -288,7 +288,6 @@ findInstance m Nothing =
   ifM canDropRecursiveInstance (addConstraint neverUnblock (FindInstance m Nothing)) $
   -- Getting initial candidates can fail, in which case we should postpone (#7286)
   catchConstraint (FindInstance m Nothing) $ do
-  whenProfile Profile.Caching $ tickCM (FindInstance m Nothing)
   -- Andreas, 2015-02-07: New metas should be created with range of the
   -- current instance meta, thus, we set the range.
   mv <- lookupLocalMeta m
@@ -309,8 +308,7 @@ findInstance m Nothing =
       Right cs -> findInstance m (Just cs)
 
 findInstance m (Just cands) =                          -- Note: if no blocking meta variable this will not unblock until the end of the mutual block
-  (whenProfile Profile.Caching $ tickCM (FindInstance m (Just cands))) >>
-  (whenJustM (findInstance' m cands) $ (\ (cands, b) -> addConstraint b $ FindInstance m $ Just cands))
+  whenJustM (findInstance' m cands) $ (\ (cands, b) -> addConstraint b $ FindInstance m $ Just cands)
 
 -- | Entry point for `tcGetInstances` primitive
 getInstanceCandidates :: MetaId -> TCM (Either Blocker [Candidate])
@@ -493,6 +491,8 @@ findInstance' m cands = do
           -- If we actually solved the constraints we should wake up any held
           -- instance constraints, to make sure we don't forget about them.
           wakeupInstanceConstraints
+          ce <- getCacheEntry (InstanceConstraint t)
+          whenProfile Profile.Caching $ tickC ce
           return Nothing  -- We’re done
 
         _ -> do
@@ -1009,10 +1009,11 @@ addTypedInstance' w orig x t = do
     [ "adding typed instance" <+> prettyTCM x <+> "with type"
     , prettyTCM =<< flip abstract t <$> getContextTelescope
     ]
-  whenProfile Profile.Caching $ tickCM (ResolveInstanceHead x)
   (tel, hdt, n) <- getOutputTypeName t
   case n of
     OutputTypeName n -> addContext tel $ do
+      -- only tick when the name isn't blocked
+      whenProfile Profile.Caching $ tickCM (ResolveInstanceHead x)
       tele <- getContextTelescope
 
       -- Insert the instance into the instance table, putting it in the

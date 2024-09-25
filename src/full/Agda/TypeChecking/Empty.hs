@@ -54,11 +54,14 @@ ensureEmptyType
   :: Range -- ^ Range of the absurd pattern.
   -> Type  -- ^ Type that should be empty (empty data type or iterated product of such).
   -> TCM ()
-ensureEmptyType r t = (whenProfile Profile.Caching $ tickCM (IsEmpty r t)) >> caseEitherM (checkEmptyType r t) failure return
+ensureEmptyType r t = do
+  ce <- getCacheEntryR (IsEmpty r t)
+  whenProfile Profile.Caching $ tickC ce
+  caseEitherM (checkEmptyType r t) (failure ce) return
   where
-  failure (DontKnow u)      = addConstraint u $ IsEmpty r t
-  failure (FailBecause err) = throwError err
-  failure Fail              = typeError $ ShouldBeEmpty t []
+  failure ce (DontKnow u)      = whenProfile Profile.Caching (untickC ce) >> addConstraint u (IsEmpty r t)
+  failure _ (FailBecause err) = throwError err
+  failure _ Fail              = typeError $ ShouldBeEmpty t []
 
 -- | Check whether a type is empty.
 isEmptyType :: Type -> TCM Bool

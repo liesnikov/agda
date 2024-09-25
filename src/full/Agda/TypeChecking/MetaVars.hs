@@ -1361,9 +1361,13 @@ assignMeta' m x t n ids v = do
 --   instantiated, add a constraint to check the instantiation later.
 checkMetaInst :: MetaId -> TCM ()
 checkMetaInst x = do
-  whenProfile Profile.Caching $ tickCM (CheckMetaInst x)
+  ce <- getCacheEntryR (CheckMetaInst x)
+  whenProfile Profile.Caching $ tickC ce
   m <- lookupLocalMeta x
-  let postpone = addConstraint (unblockOnMeta x) $ CheckMetaInst x
+  let postpone :: TCM ()
+      postpone =
+        whenProfile Profile.Caching (untickC ce) >>
+        addConstraint (unblockOnMeta x) (CheckMetaInst x)
   case mvInstantiation m of
     BlockedConst{} -> postpone
     PostponedTypeCheckingProblem{} -> postpone
@@ -1468,8 +1472,7 @@ subtypingForSizeLt dir   x mvar t args v cont = do
           let xArgs = MetaV x $ map Apply args
               v'    = Def qSizeLt [Apply $ Arg ai yArgs]
               c     = dirToCmp (`ValueCmp` (AsTermsOf sizeUniv)) dir xArgs v'
-          whenProfile Profile.Caching $ tickCM c
-          catchConstraint c $ cont v'
+          catchConstraintC c $ cont v'
         _ -> fallback
 
 -- | Eta-expand bound variables like @z@ in @X (fst z)@.

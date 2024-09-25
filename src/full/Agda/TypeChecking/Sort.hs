@@ -92,7 +92,7 @@ hasBiggerSort = void . inferUnivSort -- not caching constraints because it's unu
 --   If we can compute the sort straight away, return that.
 --   Otherwise, return a 'PiSort' and add a constraint to ensure we can compute the sort eventually.
 --
-inferPiSort :: (PureTCM m, MonadConstraint m)
+inferPiSort :: (PureTCM m, MonadConstraint m, MonadStatistics m)
   => Dom Type  -- ^ Domain of the Pi type.
   -> Abs Sort  -- ^ (Dependent) sort of the codomain of the Pi type.
   -> m Sort    -- ^ Sort of the Pi type.
@@ -106,7 +106,10 @@ inferPiSort a s = do
   --Arthur Adjedj, 2023-02-27, Turned PTS back on,
   --piSort can now be blocked by Leveluniv
   case piSort' (unEl <$> a) s1 s2 of
-    Right s -> return s
+    Right s -> do
+      -- tick when we made progress and aren't blocked
+      whenProfile Profile.Caching $ tickCM (HasPTSRule a s2)
+      return s
     Left b -> do
       let b' = unblockOnEither (getBlocker s1') (getBlocker $ unAbs s2')
       addConstraint (unblockOnEither b b') $ HasPTSRule a s2
@@ -125,10 +128,12 @@ inferFunSort a s = do
   let s1 = ignoreBlocking s1'
   let s2 = ignoreBlocking s2'
   case funSort' s1 s2 of
-    Right s -> return s
+    Right s -> do
+      -- tick if we actually made progress and not just reblocked
+      whenProfile Profile.Caching (tickCM (HasPTSRule a (NoAbs "_" s2)))
+      return s
     Left b -> do
       let b' = unblockOnEither (getBlocker s1') (getBlocker s2')
-      whenProfile Profile.Caching $ tickCM (HasPTSRule a (NoAbs "_" s2))
       addConstraint (unblockOnEither b b') $ HasPTSRule a (NoAbs "_" s2)
       return $ FunSort s1 s2
   -- Andreas, 2023-05-20:  I made inferFunSort step-by-step analogous to inferPiSort.
@@ -138,14 +143,16 @@ inferFunSort a s = do
 --
 hasPTSRule :: Dom Type -> Abs Sort -> TCM ()
 hasPTSRule a s = do
-  whenProfile Profile.Caching $ tickCM (HasPTSRule a s)
   reportSDoc "tc.conv.sort" 35 $ vcat
     [ "hasPTSRule"
     , "a =" <+> prettyTCM a
     , "s =" <+> prettyTCM (unAbs s)
     ]
   if alwaysValidCodomain $ unAbs s
-  then yes
+  then do
+    -- doesn't block, hence "always makes progress", hence tick at the top
+    whenProfile Profile.Caching $ tickCM (HasPTSRule a s)
+    yes
   else do
     sb <- reduceB =<< inferPiSort a s
     case sb of
@@ -220,7 +227,6 @@ sortOf t = do
         let a = unEl $ unDom adom
         sa <- sortOf a
         sb <- mapAbstraction adom (sortOf . unEl) b
-        whenProfile Profile.Caching $ tickCM (HasPTSRule (adom $> El sa a) sb)
         inferPiSort (adom $> El sa a) sb
       Sort s     -> return $ univSort s
       Var i es   -> do

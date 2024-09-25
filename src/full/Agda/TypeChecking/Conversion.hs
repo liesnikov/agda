@@ -294,9 +294,8 @@ compareAs' cmp tt m n = case tt of
 compareTerm' :: forall m. MonadConversion m => Comparison -> Type -> Term -> Term -> m ()
 compareTerm' cmp a m n =
   verboseBracket "tc.conv.term" 20 "compareTerm" $ do
-  whenProfile Profile.Caching $ tickCM (ValueCmp cmp (AsTermsOf a) m n)
   (ba, a') <- reduceWithBlocker a
-  (catchConstraint (ValueCmp cmp (AsTermsOf a') m n) :: m () -> m ()) $ blockOnError ba $ do
+  (catchConstraintC (ValueCmp cmp (AsTermsOf a') m n) :: m () -> m ()) $ blockOnError ba $ do
     reportSDoc "tc.conv.term" 30 $ fsep
       [ "compareTerm", prettyTCM m, prettyTCM cmp, prettyTCM n, ":", prettyTCM a' ]
     propIrr  <- isPropEnabled
@@ -533,9 +532,14 @@ computeElimHeadType f es _   = computeDefType f es
 --
 compareAtom :: forall m. MonadConversion m => Comparison -> CompareAs -> Term -> Term -> m ()
 compareAtom cmp t m n =
-  verboseBracket "tc.conv.atom" 20 "compareAtom" $
+  verboseBracket "tc.conv.atom" 20 "compareAtom" $ do
   -- if a PatternErr is thrown, rebuild constraint!
-  (catchConstraint (ValueCmp cmp t m n) :: m () -> m ()) $ do
+  ce <- getCacheEntryR (ValueCmp cmp t m n)
+  let untick = case t of
+                 AsTypes -> whenProfile Profile.Caching $ untickC ce
+                 _ -> return ()
+      cc c m = catchPatternErr (\ unblock -> untick >> addConstraint unblock c) m
+  (cc (ValueCmp cmp t m n) :: m () -> m ()) $ do
     reportSLn "tc.conv.atom.size" 50 $ "compareAtom term size:  " ++ show (termSize m, termSize n)
     reportSDoc "tc.conv.atom" 50 $
       "compareAtom" <+> fsep [ prettyTCM m <+> prettyTCM cmp
@@ -544,7 +548,7 @@ compareAtom cmp t m n =
                              ]
     whenProfile Profile.Conversion $ tick "compare by reduction"
     case t of
-      AsTypes -> whenProfile Profile.Caching $ tickCM (ValueCmp cmp t m n)
+      AsTypes -> whenProfile Profile.Caching $ tickC ce
       _ -> return ()
     -- Are we currently defining mutual functions? Which?
     currentMutuals <- maybe (pure Set.empty) (mutualNames <.> lookupMutualBlock) =<< asksTC envMutualBlock
@@ -943,8 +947,7 @@ antiUnifyElims _ _ _ _ _ = patternViolation neverUnblock -- trigger maybeGiveUp 
 compareElims :: forall m. MonadConversion m => [Polarity] -> [IsForced] -> Type -> Term -> [Elim] -> [Elim] -> m ()
 compareElims pols0 fors0 a v els01 els02 =
   verboseBracket "tc.conv.elim" 20 "compareElims" $
-  (catchConstraint (ElimCmp pols0 fors0 a v els01 els02) :: m () -> m ()) $ do
-  whenProfile Profile.Caching $ tickCM (ElimCmp (take 10 pols0) (take 10 fors0) a v els01 els02)
+  (catchConstraintCC (ElimCmp (take 10 pols0) (take 10 fors0) a v els01 els02) (ElimCmp pols0 fors0 a v els01 els02) :: m () -> m ()) $ do
   let v1 = applyE v els01
       v2 = applyE v els02
       failure = typeError $ UnequalTerms CmpEq v1 v2 (AsTermsOf a)
@@ -1313,7 +1316,8 @@ leqSort s1 s2 = do
                         , pretty s2 ]
         ]
   whenProfile Profile.Conversion $ tick "compare sorts"
-  whenProfile Profile.Caching $ tickCM (SortCmp CmpLeq s1 s2)
+  ce <- getCacheEntryR (SortCmp CmpLeq s1 s2)
+  whenProfile Profile.Caching $ tickC ce
 
   SynEq.checkSyntacticEquality s1 s2 (\_ _ -> return ()) $ \s1 s2 -> do
 
@@ -1338,6 +1342,7 @@ leqSort s1 s2 = do
                                    , pretty s2 ]
                    ]
                  blocker <- updateBlocker blocker
+                 whenProfile Profile.Caching $ untickC ce
                  addConstraint blocker $ SortCmp CmpLeq s1 s2
 
     propEnabled <- isPropEnabled
@@ -1424,13 +1429,12 @@ leqSort s1 s2 = do
     __IMPOSSIBLE__
 
 leqLevel :: MonadConversion m => Level -> Level -> m ()
-leqLevel a b = catchConstraint (LevelCmp CmpLeq a b) $ do
+leqLevel a b = catchConstraintC (LevelCmp CmpLeq a b) $ do
       reportSDoc "tc.conv.level" 30 $
         "compareLevel" <+>
           sep [ prettyTCM a <+> "=<"
               , prettyTCM b ]
       whenProfile Profile.Conversion $ tick "compare levels"
-      whenProfile Profile.Caching $ tickCM (LevelCmp CmpLeq a b)
       (a, b) <- normalise (a, b)
       SynEq.checkSyntacticEquality' a b
         (\_ _ ->
@@ -1566,7 +1570,6 @@ equalLevel :: forall m. MonadConversion m => Level -> Level -> m ()
 equalLevel a b = do
   reportSDoc "tc.conv.level" 50 $ sep [ "equalLevel", nest 2 $ parens $ pretty a, nest 2 $ parens $ pretty b ]
   whenProfile Profile.Conversion $ tick "compare levels"
-  whenProfile Profile.Caching $ tickCM (LevelCmp CmpEq a b)
   -- Andreas, 2013-10-31 remove common terms (that don't contain metas!)
   -- THAT's actually UNSOUND when metas are instantiated, because
   --     max a b == max a c  does not imply  b == c
@@ -1637,7 +1640,7 @@ equalLevel a b = do
   as <- (mapM . mapM) reduceB as
   bs <- (mapM . mapM) reduceB bs
 
-  catchConstraint (LevelCmp CmpEq a b) $ case (as, bs) of
+  catchConstraintC (LevelCmp CmpEq a b) $ case (as, bs) of
 
         -- closed == closed
         (SingleClosed m :| [], SingleClosed n :| [])
@@ -1750,7 +1753,8 @@ equalSort s1 s2 = do
            ]
     ]
   whenProfile Profile.Conversion $ tick "compare sorts"
-  whenProfile Profile.Caching    $ tickCM (SortCmp CmpEq s1 s2)
+  ce <- getCacheEntryR (SortCmp CmpLeq s1 s2)
+  whenProfile Profile.Caching $ tickC ce
   guardPointerEquality s1 s2 "pointer equality: sorts" $
     SynEq.checkSyntacticEquality s1 s2 (\_ _ -> return ()) $ \s1 s2 -> do
 
@@ -1770,6 +1774,7 @@ equalSort s1 s2 = do
                    ]
                  -- Andreas, 2023-12-21, recomputing the blocker fixes issue #7034.
                  blocker <- updateBlocker blocker
+                 whenProfile Profile.Caching $ untickC ce
                  addConstraint blocker $ SortCmp CmpEq s1 s2
 
     propEnabled <- isPropEnabled

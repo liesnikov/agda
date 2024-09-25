@@ -50,8 +50,9 @@ import Agda.Utils.Impossible
 -- | Check whether a type is either not a SIZELT or a SIZELT that is non-empty.
 checkSizeLtSat :: Term -> TCM ()
 checkSizeLtSat t = whenM haveSizeLt $ do
+  ce <- getCacheEntryR (CheckSizeLtSat t)
+  whenProfile Profile.Caching $ tickC ce
   reportSDoc "tc.size" 10 $ do
-    whenProfile Profile.Caching $ tickCM (CheckSizeLtSat t)
     tel <- getContextTelescope
     sep
       [ "checking that " <+> prettyTCM t <+> " is not an empty type of sizes"
@@ -63,6 +64,7 @@ checkSizeLtSat t = whenM haveSizeLt $ do
       postpone b t = do
         reportSDoc "tc.size.lt" 20 $ sep
           [ "- postponing `not empty type of sizes' check for " <+> prettyTCM t ]
+        whenProfile Profile.Caching $ untickC ce
         addConstraint b $ CheckSizeLtSat t
   let ok :: TCM ()
       ok = reportSLn "tc.size.lt" 20 $ "- succeeded: not an empty type of sizes"
@@ -221,7 +223,8 @@ boundedSizeMetaHook v@(MetaV x _) tel0 a = do
       addContext tel $ do
         v <- sizeSuc 1 $ raise (size tel) v `apply` teleArgs tel
         -- compareSizes CmpLeq v u
-        whenProfile Profile.Caching $ tickCM (ValueCmp CmpLeq AsSizes v u)
+        -- don't tick here since this only creates the constraint, doesn't solve it
+        -- whenProfile Profile.Caching $ tickCM (ValueCmp CmpLeq AsSizes v u)
         addConstraint (unblockOnMeta x) $ ValueCmp CmpLeq AsSizes v u
     _ -> return ()
 boundedSizeMetaHook _ _ _ = __IMPOSSIBLE__
@@ -304,6 +307,7 @@ sizeMaxView v = do
 -- | Compare two sizes.
 compareSizes :: (MonadConversion m) => Comparison -> Term -> Term -> m ()
 compareSizes cmp u v = verboseBracket "tc.conv.size" 10 "compareSizes" $ do
+  -- doesn't block(?), tick at the top
   whenProfile Profile.Caching $ tickCM (ValueCmp cmp AsSizes u v)
   reportSDoc "tc.conv.size" 10 $ vcat
     [ "Comparing sizes"
