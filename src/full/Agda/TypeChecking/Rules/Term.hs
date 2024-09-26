@@ -1352,6 +1352,7 @@ unquoteTactic tac hole goal = do
       setCurrentRange r $
         addConstraint blocker' (UnquoteTactic tac hole goal)
     Left err -> typeError $ UnquoteFailed err
+    -- TODO fix this, probably remove
     Right _ -> whenProfile Profile.Caching $ tickCM (UnquoteTactic tac hole goal) >> return ()
 
 ---------------------------------------------------------------------------

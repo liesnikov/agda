@@ -295,7 +295,8 @@ compareTerm' :: forall m. MonadConversion m => Comparison -> Type -> Term -> Ter
 compareTerm' cmp a m n =
   verboseBracket "tc.conv.term" 20 "compareTerm" $ do
   (ba, a') <- reduceWithBlocker a
-  (catchConstraintC (ValueCmp cmp (AsTermsOf a') m n) :: m () -> m ()) $ blockOnError ba $ do
+  let ce = (ValueCmp cmp (AsTermsOf a') m n)
+  (catchConstraint ce :: m () -> m ()) $ blockOnError ba $ do
     reportSDoc "tc.conv.term" 30 $ fsep
       [ "compareTerm", prettyTCM m, prettyTCM cmp, prettyTCM n, ":", prettyTCM a' ]
     propIrr  <- isPropEnabled
@@ -421,7 +422,9 @@ compareTerm' cmp a m n =
                      -- No subtyping on record terms
                      c <- getRecordConstructor r
                      -- Record constructors are covariant (see test/succeed/CovariantConstructors).
+                     whenProfile Profile.Caching $ tickCM ce
                      compareArgs (repeat $ polFromCmp cmp) [] (telePi_ tel __DUMMY_TYPE__) (Con c ConOSystem []) m' n'
+
 
             else (do pathview <- pathView a'
                      equalPath pathview a' m n)
@@ -534,12 +537,7 @@ compareAtom :: forall m. MonadConversion m => Comparison -> CompareAs -> Term ->
 compareAtom cmp t m n =
   verboseBracket "tc.conv.atom" 20 "compareAtom" $ do
   -- if a PatternErr is thrown, rebuild constraint!
-  ce <- getCacheEntryR (ValueCmp cmp t m n)
-  let untick = case t of
-                 AsTypes -> whenProfile Profile.Caching $ untickC ce
-                 _ -> return ()
-      cc c m = catchPatternErr (\ unblock -> untick >> addConstraint unblock c) m
-  (cc (ValueCmp cmp t m n) :: m () -> m ()) $ do
+  (catchConstraintC (ValueCmp cmp t m n) :: m () -> m ()) $ do
     reportSLn "tc.conv.atom.size" 50 $ "compareAtom term size:  " ++ show (termSize m, termSize n)
     reportSDoc "tc.conv.atom" 50 $
       "compareAtom" <+> fsep [ prettyTCM m <+> prettyTCM cmp
@@ -547,9 +545,6 @@ compareAtom cmp t m n =
                              , prettyTCM t
                              ]
     whenProfile Profile.Conversion $ tick "compare by reduction"
-    case t of
-      AsTypes -> whenProfile Profile.Caching $ tickC ce
-      _ -> return ()
     -- Are we currently defining mutual functions? Which?
     currentMutuals <- maybe (pure Set.empty) (mutualNames <.> lookupMutualBlock) =<< asksTC envMutualBlock
 
