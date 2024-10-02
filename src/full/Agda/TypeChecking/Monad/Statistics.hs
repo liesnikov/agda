@@ -151,11 +151,11 @@ untickCN c n = modifyCacheCounter c (-n +)
 
 catchConstraintC :: (MonadStatistics m, MonadConstraint m)
   => Constraint -> m () -> m ()
-catchConstraintC c m = whenProfile Profile.Caching (tickCM c) >> catchPatternErr (\ unblock -> untickCM c >> addConstraint unblock c) m
+catchConstraintC c m = whenProfile Profile.Caching (tickCM c) >> catchPatternErr (\ unblock -> whenProfile Profile.Caching (untickCM c) >> addConstraint unblock c) m
 
 catchConstraintCC :: (MonadStatistics m, MonadConstraint m)
   => Constraint -> Constraint -> m () -> m ()
-catchConstraintCC ce c m = whenProfile Profile.Caching (tickCM ce) >> catchPatternErr (\ unblock -> untickCM c >> addConstraint unblock c) m
+catchConstraintCC ce c m = whenProfile Profile.Caching (tickCM ce) >> catchPatternErr (\ unblock -> whenProfile Profile.Caching (untickCM ce) >> addConstraint unblock c) m
 
 printCacheCounter :: (MonadDebug m, MonadTCEnv m, HasOptions m)
   => (CacheEntry -> m Doc) -> Integer -> Maybe TopLevelModuleName -> ConstraintsCache -> m ()
@@ -183,9 +183,9 @@ printCacheCounterCSV prettyp n mmname stats = do
     showcol1 <- traverse (uncurry cachePrinter) stats'
     alwaysReportSLn "" 1 $ caseMaybe mmname "Accumulated csv statistics" $ \ mname ->
       "Statistics for " ++ prettyShow mname
-    --reportSLn "" 1 ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-    --alwaysReportSLn "" 1 $ renderStyle (Style LeftMode 100 0.1) $ vsep showcol1
-    --reportSLn "" 1 "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+    reportSLn "" 1 ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+    alwaysReportSLn "" 1 $ renderStyle (Style LeftMode 100 0.1) $ vsep showcol1
+    reportSLn "" 1 "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
   where
     cachePrinter :: CacheEntry -> Integer -> m Doc
     cachePrinter (ctx, cnstr) i = do
