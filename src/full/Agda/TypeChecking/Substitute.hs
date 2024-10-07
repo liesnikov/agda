@@ -1046,6 +1046,12 @@ instance Subst Constraint where
       rf :: forall a. TermSubst a => a -> a
       rf x = applySubst rho x
 
+instance Subst CacheConstraint where
+  type SubstArg CacheConstraint = Term
+  applySubst rho = \case
+    RegularConstraint c -> RegularConstraint $ applySubst rho c
+    InstanceConstraint t -> InstanceConstraint $ applySubst rho t
+
 instance Subst CompareAs where
   type SubstArg CompareAs = Term
   applySubst rho (AsTermsOf a) = AsTermsOf $ applySubst rho a
