@@ -1446,8 +1446,7 @@ instance Pretty CacheConstraint where
     RegularConstraint c -> pretty c
     InstanceConstraint t -> "Instance constraint:" <+> pretty t
 
---type CacheEntry = (Context, CacheConstraint)
-type CacheEntry = CacheConstraint
+type CacheEntry = (Maybe Context, CacheConstraint)
 
 type ConstraintsCache = Map CacheEntry Integer
 

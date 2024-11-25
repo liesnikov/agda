@@ -5,7 +5,7 @@
 module Agda.TypeChecking.Monad.Statistics
     ( MonadStatistics(..)
     , tick, tickN, tickMax, getStatistics, modifyStatistics, printStatistics
-    , getCacheEntryR, getCacheEntry
+    , getCacheEntryR, getCacheEntry, getCacheOpts
     , tickCM, tickC, tickCN
     , untickC
     , catchConstraintC, catchConstraintCC
@@ -49,12 +49,12 @@ class ReadTCState m => MonadStatistics m where
     =>  String -> (Integer -> Integer) -> m ()
   modifyCounter x = lift . modifyCounter x
 
-  modifyCacheCounter :: CacheEntry -> (Integer -> Integer) -> m ()
+  modifyCacheCounter :: ZeroVars -> CacheEntry -> (Integer -> Integer) -> m ()
 
   default modifyCacheCounter
     :: (MonadStatistics n, MonadTrans t, t n ~ m)
-    => CacheEntry -> (Integer -> Integer) -> m ()
-  modifyCacheCounter x = lift . modifyCacheCounter x
+    => ZeroVars -> CacheEntry -> (Integer -> Integer) -> m ()
+  modifyCacheCounter z x = lift . modifyCacheCounter z x
 
 instance MonadStatistics m => MonadStatistics (ExceptT e m)
 instance MonadStatistics m => MonadStatistics (MaybeT m)
@@ -80,12 +80,12 @@ instance MonadStatistics TCM where
       update  = Map.insertWith (\ new old -> f old) x dummy
       dummy   = f 0
 
-  modifyCacheCounter x f = do
-    nx <- all2zero x
-    modifyConstraintsCache $ force . update
+  modifyCacheCounter z (mctx, cnstr) f = do
+    ncnstr <- if z then (all2zero cnstr) else return cnstr
+    modifyConstraintsCache $ force . (update (mctx, ncnstr))
    where
       force m = rnf m `seq` m
-      update  = Map.insertWith (\ new old -> f old) x dummy
+      update x = Map.insertWith (\ new old -> f old) x dummy
       dummy   = f 0
 
 -- | Get the statistics.
@@ -129,37 +129,77 @@ getConstraintsCache = useR stConstraintsCache
 modifyConstraintsCache :: (ConstraintsCache -> ConstraintsCache) -> TCM ()
 modifyConstraintsCache f = stConstraintsCache `modifyTCLens` f
 
-getCacheEntryR :: (MonadTCEnv m) => Constraint -> m CacheEntry
+getCacheEntryR :: (MonadTCEnv m, MonadDebug m) => Constraint -> m CacheEntry
 getCacheEntryR = getCacheEntry . RegularConstraint
 
-getCacheEntry :: (MonadTCEnv m) => CacheConstraint -> m CacheEntry
-getCacheEntry c = (\env -> c) <$> askTC
+getCacheEntry :: (MonadTCEnv m, MonadDebug m) => CacheConstraint -> m CacheEntry
+getCacheEntry c = do
+  (_,k) <- getCacheOpts
+  env <- askTC
+  let mctx = boolToMaybe k (envContext env)
+  return (mctx, c)
 
-tickCM :: (MonadStatistics m, MonadTCEnv m) => Constraint -> m ()
-tickCM c = askTC >>= \env -> tickC (RegularConstraint c)
+tickCM :: (MonadStatistics m, MonadTCEnv m, MonadDebug m) => Constraint -> m ()
+tickCM c = do
+  co <- getCacheOpts
+  tickCMO co c
 
-tickC :: MonadStatistics m => CacheEntry -> m ()
-tickC c = tickCN c 1
+tickCMO :: (MonadStatistics m, MonadTCEnv m) => CacheOpts -> Constraint -> m ()
+tickCMO (z, k) c = do
+  env <- askTC
+  let mctx = boolToMaybe k (envContext env)
+  tickCO z (mctx, RegularConstraint c)
 
-tickCN :: MonadStatistics m => CacheEntry -> Integer -> m ()
-tickCN c n = modifyCacheCounter c (n +)
+tickC :: (MonadStatistics m, MonadDebug m) => CacheEntry -> m ()
+tickC c = do
+  (z,_) <- getCacheOpts
+  tickCO z c
 
-untickCM :: (MonadStatistics m, MonadTCEnv m) => Constraint -> m ()
-untickCM c = askTC >>= \ env -> untickCN (RegularConstraint c) 1
+tickCO :: MonadStatistics m => ZeroVars -> CacheEntry -> m ()
+tickCO z c = tickCN z c 1
 
-untickC :: MonadStatistics m => CacheEntry -> m ()
-untickC c = untickCN c 1
+tickCN :: MonadStatistics m => ZeroVars -> CacheEntry -> Integer -> m ()
+tickCN z c n = modifyCacheCounter z c (n +)
 
-untickCN :: MonadStatistics m => CacheEntry -> Integer -> m ()
-untickCN c n = modifyCacheCounter c (-n +)
+untickCM :: (MonadStatistics m, MonadTCEnv m, MonadDebug m) => Constraint -> m ()
+untickCM c = do
+  co <- getCacheOpts
+  untickCMO co c
+
+untickCMO :: (MonadStatistics m, MonadTCEnv m) => CacheOpts -> Constraint -> m ()
+untickCMO (z, k) c = do
+  env <- askTC
+  let mctx = boolToMaybe k (envContext env)
+  untickCN z (mctx, RegularConstraint c) 1
+
+untickCO :: MonadStatistics m => ZeroVars -> CacheEntry -> m ()
+untickCO z c = untickCN z c 1
+
+untickC :: (MonadStatistics m, MonadDebug m) => CacheEntry -> m ()
+untickC c = do
+  (z,_) <- getCacheOpts
+  untickCO z c
+
+untickCN :: MonadStatistics m => ZeroVars -> CacheEntry -> Integer -> m ()
+untickCN z c n = modifyCacheCounter z c (-n +)
 
 catchConstraintC :: (MonadStatistics m, MonadConstraint m)
   => Constraint -> m () -> m ()
-catchConstraintC c m = whenProfile Profile.Caching (tickCM c) >> catchPatternErr (\ unblock -> whenProfile Profile.Caching (untickCM c) >> addConstraint unblock c) m
+catchConstraintC c m = do
+  whenProfile Profile.Caching (tickCM c)
+  catchPatternErr (\ unblock -> do
+                      whenProfile Profile.Caching (untickCM c)
+                      addConstraint unblock c)
+                  m
 
 catchConstraintCC :: (MonadStatistics m, MonadConstraint m)
   => Constraint -> Constraint -> m () -> m ()
-catchConstraintCC ce c m = whenProfile Profile.Caching (tickCM ce) >> catchPatternErr (\ unblock -> whenProfile Profile.Caching (untickCM ce) >> addConstraint unblock c) m
+catchConstraintCC ce c m = do
+  whenProfile Profile.Caching (tickCM ce)
+  catchPatternErr (\ unblock -> do
+                      whenProfile Profile.Caching (untickCM ce)
+                      addConstraint unblock c)
+                  m
 
 printCacheCounter :: (MonadDebug m, MonadTCEnv m, HasOptions m)
   => (CacheEntry -> m Doc) -> Integer -> Maybe TopLevelModuleName -> ConstraintsCache -> m ()
@@ -192,7 +232,7 @@ printCacheCounterCSV prettyp n mmname stats = do
     reportSLn "" 1 "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
   where
     cachePrinter :: CacheEntry -> Integer -> m Doc
-    cachePrinter (cnstr) i = do
+    cachePrinter (mctx, cnstr) i = do
       let tagR c = case c of
             ValueCmp _ _ _ _ -> "ValueCmp"
             ValueCmpOnFace _ _ _ _ _ -> "ValueCmpOnFace"
@@ -217,9 +257,9 @@ printCacheCounterCSV prettyp n mmname stats = do
             RegularConstraint c -> tagR c
             InstanceConstraint t -> "InstanceSearch"
           pcnstr = pretty cnstr
-          --pctx = pretty ctx
+          pctx = maybe "No context" pretty mctx
           name = maybe [] (return . pretty) mmname
-      return . hsep $ punctuate (text ",") $ name ++ [ tag, pretty i, doubleQuotes pcnstr]
+      return . hsep $ punctuate (text ",") $ name ++ [ tag, pretty i, doubleQuotes pcnstr, doubleQuotes pctx]
 
 
 -- utils
@@ -230,3 +270,13 @@ all2zero t = do
   n <- getContextSize
   let s = parallelS . replicate n $ deBruijnVar 0
   return $ applySubst s t
+
+type ZeroVars = Bool
+type KeepContext = Bool
+type CacheOpts = (ZeroVars, KeepContext)
+
+getCacheOpts :: (MonadDebug m) => m CacheOpts
+getCacheOpts = do
+  z <- hasProfileOption Profile.CacheZeroVar
+  k <- hasProfileOption Profile.CacheNoContx
+  return (z, not k)

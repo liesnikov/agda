@@ -158,7 +158,7 @@ instance (PureTCM m, MonadBlock m) => MonadWarning (PureConversionT m) where
 
 instance ReadTCState m => MonadStatistics (PureConversionT m) where
   modifyCounter _ _ = return ()
-  modifyCacheCounter _ _ = return ()
+  modifyCacheCounter _ _ _ = return ()
 
 instance Monad m => MonadFresh ProblemId (PureConversionT m) where
   fresh = do

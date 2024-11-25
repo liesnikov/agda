@@ -41,6 +41,8 @@ data ProfileOption = Internal     -- ^ Measure time taken by various parts of th
                    | Conversion   -- ^ Collect statistics about conversion checking
                    | Instances    -- ^ Collect statistics about instance search
                    | Caching      -- ^ Collect statistics about constraint solving
+                   | CacheZeroVar -- ^ Zero all variables when collecting statistics about constraint solving
+                   | CacheNoContx -- ^ Drop the contexts when collecting statistics about constraint solving
   deriving (Show, Eq, Ord, Enum, Bounded, Generic)
 
 instance NFData ProfileOption
