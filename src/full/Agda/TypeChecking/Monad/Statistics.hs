@@ -259,7 +259,7 @@ printCacheCounterCSV prettyp n mmname stats = do
           pcnstr = pretty cnstr
           pctx = maybe "No context" pretty mctx
           name = maybe [] (return . pretty) mmname
-      return . hsep $ punctuate (text ",") $ name ++ [ tag, pretty i, doubleQuotes pcnstr, doubleQuotes pctx]
+      return . hsep $ punctuate (text "︔") $ name ++ [ tag, pretty i, pcnstr, pctx]
 
 
 -- utils
