@@ -1,0 +1,13 @@
+ValueCmp︔ 2︔ Agda.Builtin.Nat._+_ 1 1 = 2 : Agda.Builtin.Nat.Nat︔ []
+
+ValueCmp︔ 2︔ Agda.Builtin.Equality._≡_ {lzero} {Agda.Builtin.Nat.Nat} (Agda.Builtin.Nat._+_ 1 1) (Agda.Builtin.Nat._+_ 1 1) =< Agda.Builtin.Equality._≡_ {lzero} {Agda.Builtin.Nat.Nat} (Agda.Builtin.Nat._+_ 1 1) 2︔ []
+
+ElimCmp︔ 2︔ [] ~~ [] : Set lzero︔ []
+
+ElimCmp︔ 2︔ [Agda.Builtin.Nat._+_ 1 1] ~~ [2] : Agda.Builtin.Nat.Nat -> Set lzero︔ []
+
+ElimCmp︔ 2︔ [Agda.Builtin.Nat._+_ 1 1, Agda.Builtin.Nat._+_ 1 1] ~~ [Agda.Builtin.Nat._+_ 1 1, 2] : Agda.Builtin.Nat.Nat -> Agda.Builtin.Nat.Nat -> Set lzero︔ []
+
+ElimCmp︔ 2︔ [{Agda.Builtin.Nat.Nat}, Agda.Builtin.Nat._+_ 1 1, Agda.Builtin.Nat._+_ 1 1] ~~ [{Agda.Builtin.Nat.Nat}, Agda.Builtin.Nat._+_ 1 1, 2] : {A : Set lzero} -> @0 -> @0 -> Set lzero︔ []
+
+ElimCmp︔ 2︔ [{lzero}, {Agda.Builtin.Nat.Nat}, Agda.Builtin.Nat._+_ 1 1, Agda.Builtin.Nat._+_ 1 1] ~~ [{lzero}, {Agda.Builtin.Nat.Nat}, Agda.Builtin.Nat._+_ 1 1, 2] : {a : Agda.Primitive.Level} -> {A : Set @0} -> @0 -> @0 -> Set @1︔ []
