@@ -126,6 +126,13 @@ CABAL_INSTALL_BIN_OPTS = -j1 --disable-library-profiling -fdebug \
                          $(CABAL_INSTALL_OPTS)
 CABAL_INSTALL_BIN_OPTS_NODEBUG = -j1 --disable-library-profiling \
                                $(CABAL_INSTALL_OPTS)
+CABAL_INSTALL_BIN_OPTS_PROF = --disable-documentation \
+															-foptimise-heavily \
+															-fenable-cluster-counting \
+															--enable-profiling \
+															--profiling-detail=none \
+															--ghc-options=-fprof-late\
+															$(CABAL_INSTALL_OPTS)
 STACK_INSTALL_BIN_OPTS = --no-library-profiling \
 												 --flag Agda:debug \
                          $(STACK_INSTALL_OPTS)
@@ -327,6 +334,15 @@ install-prof-bin : install-deps ensure-hash-is-correct
 	$(CABAL_INSTALL) -j1 \
           --enable-profiling $(PROFILING_DETAIL) \
           --program-suffix=-prof $(CABAL_INSTALL_OPTS)
+
+.PHONY: install-bin-profile
+install-bin-profile: install-deps ensure-hash-is-correct
+ifdef HAS_STACK
+	@echo "don't support stack atm"
+else
+	@echo "===================== Installing using Cabal with profiling ============"
+	$(CABAL_INSTALL) $(CABAL_INSTALL_BIN_OPTS_PROF) --program-suffix=-prof
+endif
 
 ##############################################################################
 ## Agda mode for Emacs

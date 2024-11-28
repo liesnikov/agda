@@ -37,6 +37,7 @@
             pkgs.happy
             pkgs.alex
             hpkgs.fix-whitespace
+            hpkgs.hs-speedscope
             # Tools for building the agda docs
             (pkgs.python3.withPackages (py3pkgs: [
               py3pkgs.sphinx
